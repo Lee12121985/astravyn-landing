@@ -8,25 +8,71 @@
     body {
       margin: 0;
       font-family: 'Segoe UI', sans-serif;
-      background: linear-gradient(to bottom, #001f4d, #0072b1);
       color: white;
-      text-align: center;
+      overflow: hidden;
+    }
+
+    /* Background image */
+    .bg {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 100vh;
+      width: 100%;
+      background-image: url('assets/starry-night.jpg'); /* ← Rename your image if needed */
+      background-size: cover;
+      background-position: center;
+      z-index: -2;
+    }
+
+    /* Star overlay for sky only (top half) */
+    .stars {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 50%;
+      width: 100%;
+      z-index: -1;
+      pointer-events: none;
+    }
+
+    .star {
+      position: absolute;
+      width: 2px;
+      height: 2px;
+      background: white;
+      border-radius: 50%;
+      opacity: 0.7;
+      animation: starDrift 40s linear infinite;
+    }
+
+    @keyframes starDrift {
+      from { transform: translateY(0) translateX(0); }
+      to { transform: translateY(-200px) translateX(200px); }
     }
 
     header {
-      padding: 2rem 1rem;
+      padding: 3rem 1rem 1rem;
+      text-align: center;
+      backdrop-filter: blur(4px);
     }
 
     header h1 {
-      font-size: 2rem;
-      margin-bottom: 0.5rem;
+      font-family: 'Brush Script MT', cursive;
+      font-size: 2.5rem;
+      margin: 0;
+      text-shadow: 0 0 6px rgba(0, 0, 0, 0.4);
     }
 
     .tagline {
-      color: #ccc;
+      margin-top: 0.5rem;
+      font-size: 1rem;
+      color: #f0f0f0;
+      text-shadow: 0 0 3px rgba(0, 0, 0, 0.4);
     }
 
-    section.download {
+    .download {
+      text-align: center;
       margin-top: 2rem;
     }
 
@@ -48,21 +94,22 @@
       box-shadow: 0 6px 0 #004080, 0 10px 20px rgba(0, 0, 0, 0.4);
     }
 
-    .btn:active {
-      transform: translateY(2px);
-      box-shadow: 0 2px 0 #002d66;
-    }
-
     footer {
-      padding: 2rem;
-      font-size: 0.9rem;
+      margin-top: 3rem;
+      padding: 1rem;
+      font-size: 0.8rem;
+      text-align: center;
       color: #ccc;
+      backdrop-filter: blur(2px);
     }
   </style>
 </head>
 <body>
+  <div class="bg"></div>
+  <div class="stars" id="stars"></div>
+
   <header>
-    <h1>Welcome to Astravyn</h1>
+    <h1>Astravyn</h1>
     <p class="tagline">Explore the world of meaningful connections.</p>
   </header>
 
@@ -75,5 +122,17 @@
   <footer>
     &copy; 2025 Astravyn. All rights reserved.
   </footer>
+
+  <script>
+    const stars = document.getElementById("stars");
+    for (let i = 0; i < 80; i++) {
+      const star = document.createElement("div");
+      star.className = "star";
+      star.style.top = `${Math.random() * 100}%`;
+      star.style.left = `${Math.random() * 100}%`;
+      star.style.animationDuration = `${30 + Math.random() * 30}s`;
+      stars.appendChild(star);
+    }
+  </script>
 </body>
 </html>
