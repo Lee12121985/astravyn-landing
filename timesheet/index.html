@@ -1,0 +1,569 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Attendance Details — Interactive (Updated)</title>
+
+  <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-DV0M3HKV6B"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){ dataLayer.push(arguments); }
+    gtag('js', new Date());
+    gtag('config', 'G-DV0M3HKV6B');
+  </script>
+
+  <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+
+  <style>
+    /* ------------------------------------------------------------------- */
+    /* ALL CSS STYLES ARE KEPT EXACTLY THE SAME FOR FUNCTIONAL RELIABILITY */
+    /* ------------------------------------------------------------------- */
+    :root{
+      --bg:#f5f7fa; --card:#ffffff; --muted:#6b7280; --accent:#0f8a8a;
+      --green:#34c759; --blue:#3b82f6; --orange:#f59e0b; --gray:#9ca3af;
+      --radius:12px;
+      font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;background:var(--bg);color:#111827}
+    .container{max-width:1180px;margin:26px auto;padding:18px}
+    .card{background:var(--card);border-radius:var(--radius);box-shadow:0 8px 24px rgba(11,15,25,0.05);padding:18px}
+    .layout{display:flex;gap:18px;align-items:flex-start}
+    .left{flex:1}
+    .right{width:360px}
+
+    /* Calendar */
+    .calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:18px;padding:10px 6px}
+    .day{position:relative;min-height:82px;border-radius:10px;border:1px solid #eef2f6;display:flex;justify-content:center;align-items:center;background:#fff;
+      transition: transform .14s ease, box-shadow .14s ease; will-change: transform, box-shadow; cursor:pointer;}
+    .day:hover{ transform: translateY(-6px) scale(1.01); box-shadow: 0 12px 30px rgba(11,15,25,0.08); z-index:2; }
+    .day:focus{ outline: none; box-shadow: 0 12px 30px rgba(11,15,25,0.10); transform: translateY(-6px) scale(1.01); }
+    .day.hidden{ visibility:hidden; pointer-events:none; background:transparent; border:none; box-shadow:none; transform:none; }
+    .num{position:absolute;top:8px;left:10px;font-weight:600;font-size:13px;color:#374151}
+    .pill{padding:8px 12px;border-radius:50%;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;min-width:36px;min-height:36px}
+    .pill.P{background:var(--green);color:#02240f}
+    .pill.C{background:var(--blue);color:#fff}
+    .pill.L{background:var(--orange);color:#2f1600}
+    .pill.H{background:var(--gray);color:#fff}
+
+    .weekday-row{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-bottom:8px}
+    .weekday{font-size:13px;color:var(--muted);text-align:center;font-weight:600}
+    table{width:100%;border-collapse:collapse;margin-top:10px}
+    th,td{border:1px solid #eff3f6;padding:8px;text-align:center;font-size:13px}
+    th{background:#f9fafb;font-weight:600}
+    .legend{display:flex;gap:18px;align-items:center;margin-top:18px}
+    .small{font-size:13px;color:var(--muted)}
+
+    /* Buttons */
+    .btn-3d {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 18px;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+      transition: all 0.2s ease-in-out;
+      transform: translateY(0);
+    }
+    .btn-accent {
+      background: linear-gradient(180deg, #0fa0a0, #0d8a8a);
+      color: #fff;
+      box-shadow: 0 3px 6px rgba(13, 138, 138, 0.2);
+    }
+    .btn-flat {
+      background: #fff;
+      color: #0f1724;
+      border: 1px solid #d1d5db;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.03);
+    }
+
+    .btn-control {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: none;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.18s ease-in-out;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.06);
+    }
+    .btn-weekends { background: linear-gradient(180deg, #10b981, #059669); color:#fff; }
+    .btn-clear { background: linear-gradient(180deg, #fbbf24, #f59e0b); color:#fff; }
+
+    /* ==== BUTTON HOVER EFFECTS ==== */
+
+    /* Export Excel (teal gradient) */
+    .btn-3d.btn-accent:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 14px rgba(13, 138, 138, 0.35);
+      background: linear-gradient(180deg, #13b5b5, #0e9999);
+    }
+
+    /* Export CSV (white flat) */
+    .btn-3d.btn-flat:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 14px rgba(0,0,0,0.1);
+      background: linear-gradient(180deg, #ffffff, #f3f4f6);
+    }
+
+    /* Mark Weekends H (green glossy) */
+    .btn-control.btn-weekends:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 14px rgba(16,185,129,0.35);
+      background: linear-gradient(180deg, #12d28c, #059669);
+    }
+
+    /* Clear Month (yellow glossy) */
+    .btn-control.btn-clear:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 14px rgba(245,158,11,0.35);
+      background: linear-gradient(180deg, #facc15, #eab308);
+    }
+
+    /* Pressed effect */
+    .btn-3d:active,
+    .btn-control:active {
+      transform: translateY(1px);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15) inset;
+    }
+
+    /* Status column color mapping */
+    .status-cell{ font-weight:700; border-left:4px solid transparent; transition: background 0.2s ease; }
+    .status-cell.P{ background: linear-gradient(180deg, rgba(52,199,89,0.22), rgba(52,199,89,0.08)); color:#024d1a; border-left-color:#28a745; }
+    .status-cell.C{ background: linear-gradient(180deg, rgba(59,130,246,0.22), rgba(59,130,246,0.08)); color:#06326f; border-left-color:#3b82f6; }
+    .status-cell.L{ background: linear-gradient(180deg, rgba(245,158,11,0.22), rgba(245,158,11,0.08)); color:#5c3a00; border-left-color:#f59e0b; }
+    .status-cell.H{ background: linear-gradient(180deg, rgba(156,163,175,0.22), rgba(156,163,175,0.08)); color:#1e1e1e; border-left-color:#9ca3af; }
+
+    /* responsive */
+    @media (max-width: 900px){
+      .layout{flex-direction:column}
+      .right{width:100%}
+    }
+
+    .row{display:flex;gap:8px;align-items:center}
+    .controls-inline{display:flex;gap:8px;align-items:center}
+    /* sticky summary panel on tall screens */
+    .right .card{position:sticky;top:28px}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h2 style="margin:0;font-size:20px">Attendance Details — <span id="headingMonth">October 2025</span></h2>
+        <div style="display:flex;gap:8px">
+          <button id="btnExport" class="btn-3d btn-accent" title="Export as Excel (.xlsx)">Export Excel</button>
+          <button id="btnExportCSV" class="btn-3d btn-flat" title="Export as CSV (.csv)">Export CSV</button>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
+        <label style="min-width:220px">Company Name
+          <input id="inputCompany" value="NovaEdge Technologies" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #d1d5db">
+        </label>
+
+        <label style="min-width:220px">Employee Name
+          <input id="inputName" value="Aarav Kiran" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #d1d5db">
+        </label>
+
+        <label style="min-width:160px">Employee ID
+          <input id="inputEmpId" value="NE-2047" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #d1d5db">
+        </label>
+
+        <div class="controls-inline" style="margin-right:auto;align-items:center;justify-content:flex-start;gap:12px;flex:1">
+          <label style="margin:0;font-weight:500">Month
+            <select id="selectMonth" style="margin-left:6px;padding:8px;border-radius:8px"></select>
+          </label>
+          <label style="margin:0;font-weight:500">Year
+            <select id="selectYear" style="margin-left:6px;padding:8px;border-radius:8px"></select>
+          </label>
+
+          <button id="btnMarkWeekends" class="btn-control btn-weekends">Mark Weekends H</button>
+          <button id="btnClearMonth" class="btn-control btn-clear">Clear Month</button>
+        </div>
+      </div>
+
+      <div class="layout">
+        <div class="left card" style="padding:18px">
+          <div class="small" style="margin-bottom:8px">Click a date to cycle status: <strong>Empty → P → C → L → H →</strong></div>
+          <div class="weekday-row" aria-hidden="true">
+            <div class="weekday">Mon</div><div class="weekday">Tue</div><div class="weekday">Wed</div>
+            <div class="weekday">Thu</div><div class="weekday">Fri</div><div class="weekday">Sat</div><div class="weekday">Sun</div>
+          </div>
+
+          <div style="max-height:560px;overflow:auto;padding:6px">
+            <div id="calendar" class="calendar" role="grid" aria-label="Calendar"></div>
+          </div>
+
+          <div class="legend">
+            <div class="item"><span class="pill P">P</span><span class="small" style="margin-left:6px">Present</span></div>
+            <div class="item"><span class="pill C">C</span><span class="small" style="margin-left:6px">Comp-off</span></div>
+            <div class="item"><span class="pill L">L</span><span class="small" style="margin-left:6px">Leave</span></div>
+            <div class="item"><span class="pill H">H</span><span class="small" style="margin-left:6px">Holiday</span></div>
+          </div>
+        </div>
+
+        <div class="right">
+          <div class="card">
+            <div style="font-weight:700;margin-bottom:8px">Summary</div>
+            <div style="font-size:14px;line-height:1.5">
+              <div style="display:flex;justify-content:space-between"><div>Company</div><div id="summaryCompany">NovaEdge Technologies</div></div>
+              <div style="display:flex;justify-content:space-between"><div>Employee</div><div id="summaryName">Aarav Kiran</div></div>
+              <div style="display:flex;justify-content:space-between"><div>Employee ID</div><div id="summaryEmpId">NE-2047</div></div>
+              <div style="display:flex;justify-content:space-between"><div>Month</div><div id="summaryMonth">October 2025</div></div>
+              <div style="display:flex;justify-content:space-between"><div>Total Present</div><div id="summaryPresent">0</div></div>
+              <div style="display:flex;justify-content:space-between"><div>Total Leave</div><div id="summaryLeave">0</div></div>
+              <div style="display:flex;justify-content:space-between"><div>Total Comp-off</div><div id="summaryComp">0</div></div>
+              <div style="display:flex;justify-content:space-between"><div>Total Holiday</div><div id="summaryHoliday">0</div></div>
+              <div style="display:flex;justify-content:space-between"><div>Attendance %</div><div id="summaryPercent">0%</div></div>
+              <div style="display:flex;justify-content:space-between"><div>Comp-off of Holiday</div><div id="summaryCompOfHoliday">0 / 0 (0.0%)</div></div>
+            </div>
+
+            <div style="margin-top:12px">
+              <div style="font-weight:600;margin-bottom:8px">Report Preview</div>
+              <div style="max-height:360px;overflow:auto">
+                <table id="reportTable"><thead><tr><th>Date</th><th>Day</th><th>Status</th></tr></thead><tbody id="reportBody"></tbody></table>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    // 1. FIREBASE V9 MODULAR IMPORTS
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js';
+    import { getAnalytics } from 'https://www.gstatic.com/firebasejs/10.10.0/firebase-analytics.js';
+
+    // Firebase configuration (API key is public for Analytics, no change needed)
+    const firebaseConfig = {
+      apiKey: "AIzaSyDPljICCsPxIH9TtNYJ9VyIg6YvYwPis3E",
+      authDomain: "astravyn-landing.firebaseapp.com",
+      projectId: "astravyn-landing",
+      storageBucket: "astravyn-landing.firebasestorage.app",
+      messagingSenderId: "90590064470",
+      appId: "1:90590064470:web:740aa9cd5213ac9f50f0f7",
+      measurementId: "G-DV0M3HKV6B"
+    };
+
+    // Initialize Firebase (Modern Modular Style)
+    const firebaseApp = initializeApp(firebaseConfig);
+    // Note: getAnalytics() is called to initialize the service,
+    // but actual event logging requires explicit calls (not done in this app)
+    const analytics = getAnalytics(firebaseApp);
+
+
+    // 2. MAIN APPLICATION LOGIC (Encapsulated in a function)
+    (function(){
+      const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+      function daysInMonth(y,m){ return new Date(y,m+1,0).getDate(); }
+      function isoDate(y,m,d){ return `${String(y).padStart(4,'0')}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
+      function formatDayName(y,m,d){ return new Date(y,m,d).toLocaleDateString(undefined,{weekday:'short'}); }
+      function formatMDY(y,m,d){ return `${m+1}/${d}/${y}`; }
+
+      const state = {
+        year: 2025,
+        monthIndex: 9, // October 2025 default
+        company: 'NovaEdge Technologies',
+        name: 'Aarav Kiran',
+        empId: 'NE-2047',
+        statusMap: {} // iso -> 'P'|'C'|'L'|'H'
+      };
+
+      // DOM refs
+      const selectMonth = document.getElementById('selectMonth');
+      const selectYear = document.getElementById('selectYear');
+      const headingMonth = document.getElementById('headingMonth');
+      const calendarEl = document.getElementById('calendar');
+      const inputName = document.getElementById('inputName');
+      const inputCompany = document.getElementById('inputCompany');
+      const inputEmpId = document.getElementById('inputEmpId');
+      const summaryCompany = document.getElementById('summaryCompany');
+      const summaryName = document.getElementById('summaryName');
+      const summaryEmpId = document.getElementById('summaryEmpId');
+      const summaryMonth = document.getElementById('summaryMonth');
+      const summaryPresent = document.getElementById('summaryPresent');
+      const summaryLeave = document.getElementById('summaryLeave');
+      const summaryComp = document.getElementById('summaryComp');
+      const summaryHoliday = document.getElementById('summaryHoliday');
+      const summaryPercent = document.getElementById('summaryPercent');
+      const summaryCompOfHoliday = document.getElementById('summaryCompOfHoliday');
+      const reportBody = document.getElementById('reportBody');
+      const btnExport = document.getElementById('btnExport');
+      const btnExportCSV = document.getElementById('btnExportCSV');
+      const btnMarkWeekends = document.getElementById('btnMarkWeekends');
+      const btnClearMonth = document.getElementById('btnClearMonth');
+
+      // Initialize month/year selectors if present
+      if(selectMonth){
+        selectMonth.innerHTML = monthNames.map((m,i)=>`<option value="${i}">${m}</option>`).join('');
+        selectMonth.value = state.monthIndex;
+      }
+      if(selectYear){
+        const curYear = new Date().getFullYear();
+        selectYear.innerHTML = Array.from({length:12},(_,i)=>curYear-6 + i).map(y=>`<option value="${y}">${y}</option>`).join('');
+        selectYear.value = state.year;
+      }
+
+      function renderHeading(){
+        if(headingMonth) headingMonth.textContent = `${monthNames[state.monthIndex]} ${state.year}`;
+        if(summaryCompany) summaryCompany.textContent = state.company;
+        if(summaryName) summaryName.textContent = state.name;
+        if(summaryEmpId) summaryEmpId.textContent = state.empId;
+        if(summaryMonth) summaryMonth.textContent = `${monthNames[state.monthIndex]} ${state.year}`;
+      }
+
+      const CYCLE = ['', 'P', 'C', 'L', 'H'];
+
+      function createDayCell(y,m,d){
+        const iso = isoDate(y,m,d);
+        const cell = document.createElement('div');
+        cell.className = 'day';
+        // Add ARIA attributes for keyboard interaction
+        cell.tabIndex = 0; 
+        cell.setAttribute('role', 'gridcell'); 
+        cell.setAttribute('aria-label', `${monthNames[m]} ${d}, ${y}`); 
+
+        cell.dataset.date = iso;
+
+        const dow = new Date(y,m,d).getDay();
+        if(dow===6) cell.classList.add('saturday');
+        else if(dow===0) cell.classList.add('sunday');
+        else cell.classList.add('workday');
+
+        const num = document.createElement('div'); num.className='num'; num.textContent = d; cell.appendChild(num);
+
+        const pillWrap = document.createElement('div'); pillWrap.className='pillWrap';
+        updatePill(pillWrap, state.statusMap[iso] || '');
+        cell.appendChild(pillWrap);
+
+        cell.addEventListener('click', ()=>{ 
+          const cur = state.statusMap[iso] || '';
+          let idx = CYCLE.indexOf(cur); if(idx===-1) idx=0;
+          idx = (idx + 1) % CYCLE.length;
+          const next = CYCLE[idx];
+          if(next === '') delete state.statusMap[iso]; else state.statusMap[iso] = next;
+          updatePill(pillWrap, state.statusMap[iso] || '');
+          // Update ARIA status
+          cell.setAttribute('aria-current-status', next || 'Empty');
+          updateSummaryAndReport();
+        });
+
+        // Retain original keydown to allow cycling status via Enter/Space
+        cell.addEventListener('keydown', (e)=>{ 
+          if(e.key==='Enter' || e.key===' '){ 
+            e.preventDefault(); 
+            cell.click(); 
+          } 
+          // FUTURE ADDITION: Arrow key navigation logic could be added here
+        });
+
+        return cell;
+      }
+
+      function updatePill(wrapper, status){
+        wrapper.innerHTML = '';
+        if(!status) return;
+        const sp = document.createElement('span');
+        sp.className = 'pill ' + status;
+        sp.textContent = status;
+        wrapper.appendChild(sp);
+      }
+
+      function renderCalendar(){
+        calendarEl.innerHTML = '';
+        const y = state.year, m = state.monthIndex;
+        const total = daysInMonth(y,m);
+        const firstDow = new Date(y,m,1).getDay();
+        const offset = (firstDow + 6) % 7; // Monday-first
+        for(let i=0;i<offset;i++){ const blank = document.createElement('div'); blank.className='day hidden'; calendarEl.appendChild(blank); }
+        for(let d=1; d<=total; d++) calendarEl.appendChild(createDayCell(y,m,d));
+        updateSummaryAndReport();
+      }
+
+      function updateSummaryAndReport(){
+        const y = state.year, m = state.monthIndex, total = daysInMonth(y,m);
+        let present=0, leave=0, comp=0, hol=0;
+        reportBody.innerHTML = '';
+        for(let d=1; d<=total; d++){
+          const iso = isoDate(y,m,d);
+          const st = state.statusMap[iso] || '';
+          if(st==='P') present++;
+          if(st==='L') leave++;
+          if(st==='C') comp++;
+          if(st==='H') hol++;
+          const tr = document.createElement('tr');
+          const td1 = document.createElement('td'); td1.textContent = formatMDY(y,m,d);
+          const td2 = document.createElement('td'); td2.textContent = formatDayName(y,m,d);
+          const td3 = document.createElement('td'); td3.textContent = st || '—'; td3.style.textAlign='center';
+          td3.className = 'status-cell' + (st ? (' ' + st) : '');
+          tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
+          reportBody.appendChild(tr);
+        }
+        if(summaryPresent) summaryPresent.textContent = present;
+        if(summaryLeave) summaryLeave.textContent = leave;
+        if(summaryComp) summaryComp.textContent = comp;
+        if(summaryHoliday) summaryHoliday.textContent = hol;
+
+        const workingDays = Math.max(0, total - hol);
+        const attendancePercent = workingDays > 0 ? (present / workingDays) * 100 : 0;
+        const compOffPercent = hol > 0 ? (comp / hol) * 100 : 0;
+
+        if(summaryPercent) summaryPercent.textContent = `${attendancePercent.toFixed(1)}%`;
+        if(summaryCompOfHoliday) summaryCompOfHoliday.textContent = `${comp} / ${hol} (${compOffPercent.toFixed(1)}%)`;
+      }
+
+      /* Export CSV (BOM for Excel compatibility) */
+      function exportCSV(){
+        const y = state.year, m = state.monthIndex, total = daysInMonth(y,m);
+        let present=0, leave=0, comp=0, hol=0;
+        for(let d=1; d<=total; d++){
+          const st = state.statusMap[isoDate(y,m,d)] || '';
+          if(st==='P') present++;
+          if(st==='L') leave++;
+          if(st==='C') comp++;
+          if(st==='H') hol++;
+        }
+        const workingDays = Math.max(0, total - hol);
+        const attendancePercent = workingDays > 0 ? (present / workingDays) * 100 : 0;
+        const compOffPercent = hol > 0 ? (comp / hol) * 100 : 0;
+
+        const rows = [];
+        rows.push([`Company Name: ${state.company}`]);
+        rows.push([`Employee Name: ${state.name}`]);
+        rows.push([`Employee ID: ${state.empId}`]);
+        rows.push([`Month: ${monthNames[m]} ${y}`]);
+        rows.push([]);
+        rows.push(['Summary','Value']);
+        rows.push(['Total Days in Month', total]);
+        rows.push(['Total Present', present]);
+        rows.push(['Total Leave', leave]);
+        rows.push(['Total Comp-off', comp]);
+        rows.push(['Total Holiday', hol]);
+        rows.push(['Working Days', workingDays]);
+        rows.push(['Attendance %', `${attendancePercent.toFixed(1)}%`]);
+        rows.push(['Comp-off of Holiday', `${comp} / ${hol} (${compOffPercent.toFixed(1)}%)`]);
+        rows.push([]);
+        rows.push(['Date','Day','Status']);
+        for(let d=1; d<=total; d++){
+          const iso = isoDate(y,m,d);
+          const st = state.statusMap[iso] || '';
+          rows.push([ formatMDY(y,m,d), formatDayName(y,m,d), st ]);
+        }
+
+        const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\r\n');
+        const blob = new Blob(["\uFEFF", csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url;
+        a.download = `${state.name.replace(/\s+/g,'_')}_${monthNames[m]}_${y}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+
+      /* Export Excel - data-only, robust offline */
+      function exportExcel(){
+        // XLSX is available globally because it was loaded in a separate <script> tag
+        if(typeof XLSX === 'undefined'){ throw new Error('Excel library not loaded.'); }
+
+        const y = state.year, m = state.monthIndex, total = daysInMonth(y,m);
+        let present=0, leave=0, comp=0, hol=0;
+        for(let d=1; d<=total; d++){
+          const st = state.statusMap[isoDate(y,m,d)] || '';
+          if(st==='P') present++;
+          if(st==='L') leave++;
+          if(st==='C') comp++;
+          if(st==='H') hol++;
+        }
+
+        const workingDays = Math.max(0, total - hol);
+        const attendancePercent = workingDays > 0 ? (present / workingDays) * 100 : 0;
+        const compOffPercent = hol > 0 ? (comp / hol) * 100 : 0;
+
+        const data = [];
+        data.push(['Company Name', state.company]);
+        data.push(['Employee Name', state.name]);
+        data.push(['Employee ID', state.empId]);
+        data.push(['Month', `${monthNames[m]} ${y}`]);
+        data.push([]);
+        data.push(['Summary','Value']);
+        data.push(['Total Days in Month', total]);
+        data.push(['Total Present', present]);
+        data.push(['Total Leave', leave]);
+        data.push(['Total Comp-off', comp]);
+        data.push(['Total Holiday', hol]);
+        data.push(['Working Days', workingDays]);
+        data.push(['Attendance %', `${attendancePercent.toFixed(1)}%`]);
+        data.push(['Comp-off of Holiday', `${comp} / ${hol} (${compOffPercent.toFixed(1)}%)`]);
+        data.push([]);
+        data.push(['Date','Day','Status']);
+        for(let d=1; d<=total; d++){
+          const iso = isoDate(y,m,d);
+          const st = state.statusMap[iso] || '';
+          data.push([ formatMDY(y,m,d), formatDayName(y,m,d), st ]);
+        }
+
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Attendance");
+
+        // The save method is cleaner and more standard for client-side file creation
+        XLSX.writeFile(wb, `${state.name.replace(/\s+/g,'_')}_${monthNames[m]}_${y}.xlsx`);
+      }
+
+      function exportExcelSafe(){
+        try { exportExcel(); } catch(e){ console.error('Export Excel failed:', e); alert('Export Excel failed: '+(e && e.message)); }
+      }
+
+      function markWeekendsAsHoliday(){
+        const y = state.year, m = state.monthIndex, total = daysInMonth(y,m);
+        for(let d=1; d<=total; d++){
+          const dow = new Date(y,m,d).getDay();
+          // Saturday (6) or Sunday (0)
+          if(dow===0 || dow===6) state.statusMap[isoDate(y,m,d)] = 'H';
+        }
+        renderCalendar();
+      }
+
+      function clearMonth(){
+        const y = state.year, m = state.monthIndex;
+        // Efficiently clear only the statuses for the current month
+        Object.keys(state.statusMap).forEach(k=>{
+          const dt = new Date(k);
+          if(dt.getFullYear()===y && dt.getMonth()===m) delete state.statusMap[k];
+        });
+        renderCalendar();
+      }
+
+      // Events
+      if(selectMonth) selectMonth.addEventListener('change', ()=>{ state.monthIndex = Number(selectMonth.value); renderHeading(); renderCalendar(); });
+      if(selectYear) selectYear.addEventListener('change', ()=>{ state.year = Number(selectYear.value); renderHeading(); renderCalendar(); });
+      if(inputName) inputName.addEventListener('input', ()=>{ state.name = inputName.value || 'Unnamed'; renderHeading(); });
+      if(inputCompany) inputCompany.addEventListener('input', ()=>{ state.company = inputCompany.value || ''; renderHeading(); });
+      if(inputEmpId) inputEmpId.addEventListener('input', ()=>{ state.empId = inputEmpId.value || ''; renderHeading(); });
+      if(btnExport) btnExport.addEventListener('click', exportExcelSafe);
+      if(btnExportCSV) btnExportCSV.addEventListener('click', exportCSV);
+      if(btnMarkWeekends) btnMarkWeekends.addEventListener('click', ()=>{ markWeekendsAsHoliday(); });
+      if(btnClearMonth) btnClearMonth.addEventListener('click', ()=>{ if(confirm('Clear statuses for this month?')) clearMonth(); });
+
+      // initial render
+      renderHeading();
+      renderCalendar();
+    })();
+  </script>
+</body>
+</html>
