@@ -1,205 +1,357 @@
 <!doctype html>
 <html lang="en">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Astravyn Landing Page</title>
 
-    <link rel="stylesheet" href="style.css">
-    
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Montserrat:wght@700&display=swap" rel="stylesheet">
-
-    <link rel="icon" type="image/x-icon">
-    <link rel="apple-touch-icon">
-    
-    <link rel="icon" type="image/png" sizes="32x32">
-    <link rel="icon" type="image/png" sizes="16x16">
-    
-    <meta property="og:title" content="Astravyn">
-    <meta property="og:description" content="Innovative tools for growth, productivity, and success.">
-    <meta property="og:image" content=""> <meta property="og:url" content="https://www.yourdomain.com/"> <meta property="og:type" content="website">
-
-    <meta name="theme-color" content="#0b2540"> 
-    
-    <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-analytics.js"></script>
-    
-    <script type="module">
-        // 1. Import specific functions from the loaded SDKs 
-        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js';
-        import { getAnalytics } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-analytics.js';
-
-        // 2. Firebase configuration
-        const firebaseConfig = {
-            apiKey: "AIzaSyDPljICCsPxIH9TtNYJ9VyIg6YvYwPis3E",
-            authDomain: "astravyn-landing.firebaseapp.com",
-            projectId: "astravyn-landing",
-            storageBucket: "astravyn-landing.firebasestorage.app",
-            messagingSenderId: "90590064470",
-            appId: "1:90590064470:web:740aa9cd5213ac9f50f0f7",
-            measurementId: "G-DV0M3HKV6B"
-        };
-
-        // 3. Initialize Firebase 
-        const app = initializeApp(firebaseConfig);
-
-        // 4. Initialize Analytics 
-        const analytics = getAnalytics(app);
-
-        console.log("✅ Firebase Modular Analytics initialized successfully");
-    </script>
+    <!-- Embedded CSS (self-contained so layout won't break) -->
     <style>
         /* --- Page & background --- */
-        html,body{height:100%;margin:0;font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;}
-        body{
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Montserrat:wght@700&display=swap');
+
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+            font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+        }
+
+        body {
             background: url("assets/starry-night.jpg") no-repeat center center fixed;
             background-size: cover;
-            -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
-            color:#fff;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            color: #fff;
         }
 
         /* --- Center wrapper --- */
-        .landing-wrap{
-            min-height:100vh;
-            display:flex;
-            align-items:center;
-            justify-content:center;
-            padding:48px 20px;
-            box-sizing:border-box;
+        .landing-wrap {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 48px 20px;
+            box-sizing: border-box;
         }
 
         /* --- Glossy card --- */
-        .card{
-            width:100%;
-            max-width:980px;
-            background: linear-gradient(180deg, rgba(10,30,46,0.65), rgba(6,20,33,0.55));
-            border-radius:18px;
-            padding:36px;
-            text-align:center;
-            box-shadow: 0 30px 80px rgba(2,8,18,0.7);
+        .card {
+            width: 100%;
+            max-width: 980px;
+            background: linear-gradient(180deg, rgba(10, 30, 46, 0.75), rgba(6, 20, 33, 0.60));
+            border-radius: 18px;
+            padding: 36px;
+            text-align: center;
+            box-shadow: 0 30px 80px rgba(2, 8, 18, 0.7);
             backdrop-filter: blur(8px);
-            border: 1px solid rgba(255,255,255,0.04);
+            border: 1px solid rgba(255, 255, 255, 0.04);
         }
 
         /* --- Logo with sharp style (Montserrat) --- */
-        .logo { 
-            font-family: "Montserrat", sans-serif; 
-            font-size: 48px; 
-            margin: 0 0 6px; 
-            color: #fff; 
-            font-weight: 700; 
-            letter-spacing: -1px; 
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.4); 
+        .logo {
+            font-family: "Montserrat", sans-serif;
+            font-size: 48px;
+            margin: 0 0 6px;
+            color: #fff;
+            font-weight: 700;
+            letter-spacing: -1px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.35);
         }
-        .tagline { color: rgba(255,255,255,0.9); margin:0 0 18px; font-size:16px }
-        .sub { color: rgba(255,255,255,0.8); margin-top:10px; font-size:15px }
 
-        /* --- Primary button --- */
-        .ts-open-btn{
-            display:inline-block;
-            padding:14px 34px;
-            border-radius:40px;
-            background:#fff;
-            color:#0b2540;
-            font-weight:700;
-            font-size:17px;
-            text-decoration:none;
-            box-shadow: 0 10px 36px rgba(11,15,25,0.18);
-            max-width:420px;
-            width:auto;
+        .tagline {
+            color: rgba(255, 255, 255, 0.9);
+            margin: 0 0 12px;
+            font-size: 16px;
+        }
+
+        .sub {
+            color: rgba(255, 255, 255, 0.85);
+            margin-top: 10px;
+            font-size: 15px;
+        }
+
+        /* --- Top CTA group --- */
+        .cta-row {
+            margin-top: 18px;
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .ts-open-btn {
+            display: inline-block;
+            padding: 14px 28px;
+            border-radius: 40px;
+            background: #fff;
+            color: #0b2540;
+            font-weight: 700;
+            font-size: 16px;
+            text-decoration: none;
+            box-shadow: 0 10px 36px rgba(11, 15, 25, 0.18);
             transition: transform .14s ease, box-shadow .14s ease;
         }
-        .ts-open-btn:hover{ transform: translateY(-4px); box-shadow: 0 20px 46px rgba(11,15,25,0.24); }
+
+        .ts-open-btn:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 46px rgba(11, 15, 25, 0.24);
+        }
+
+        .ai-launch-btn {
+            display: inline-block;
+            padding: 14px 20px;
+            border-radius: 40px;
+            background: linear-gradient(90deg, #06b6d4, #3b82f6);
+            color: #fff;
+            font-weight: 700;
+            font-size: 15px;
+            text-decoration: none;
+            box-shadow: 0 10px 36px rgba(6, 16, 40, 0.28);
+            transition: transform .14s ease, box-shadow .14s ease;
+        }
+
+        .ai-launch-btn:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 46px rgba(6, 16, 40, 0.36);
+        }
 
         /* --- Apps Grid --- */
-        .apps-grid{
-            display:grid;
-            grid-template-columns: repeat(auto-fit, minmax(240px,1fr));
-            gap:20px;
-            margin-top:34px;
-            align-items:start;
+        .apps-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px;
+            margin-top: 34px;
+            align-items: start;
         }
 
-        .app-card{
-            background: rgba(255,255,255,0.04);
-            border-radius:12px;
-            padding:18px;
-            text-align:left;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.35);
-            border:1px solid rgba(255,255,255,0.03);
-            transition: transform .14s ease;
+        .app-card {
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: 12px;
+            padding: 18px;
+            text-align: left;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            transition: transform .14s ease, box-shadow .18s ease, border-color .18s ease;
         }
-        .app-card:hover{ transform: translateY(-6px); }
-        .app-title{ color:#fff; font-weight:700; margin:0 0 6px; font-size:16px }
-        .app-desc{ color:rgba(255,255,255,0.8); margin:0 0 12px; font-size:14px }
-        .app-actions{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
 
-        .btn { padding:8px 12px; border-radius:8px; text-decoration:none; font-weight:600; font-size:14px; display:inline-block; }
-        .btn-primary{ background:#0b2540; color:#fff; border: none; box-shadow: 0 8px 20px rgba(11,15,25,0.25); }
-        .btn-light{ background:rgba(255,255,255,0.9); color:#0b2540; }
+        .app-card:hover {
+            transform: translateY(-6px);
+        }
 
-        .coming { background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.8); pointer-events:none; }
+        .app-title {
+            color: #fff;
+            font-weight: 700;
+            margin: 0 0 6px;
+            font-size: 16px;
+        }
 
-        /* footer inside card */
-        .card-footer{ margin-top:22px; color:rgba(255,255,255,0.75); font-size:13px }
+        .app-desc {
+            color: rgba(255, 255, 255, 0.82);
+            margin: 0 0 12px;
+            font-size: 14px;
+            line-height: 1.35;
+        }
 
-        @media (max-width:560px){
-            .logo{ font-size:40px }
-            .card{ padding:20px }
+        .app-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 8px 12px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 14px;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background: #0b2540;
+            color: #fff;
+            border: none;
+            box-shadow: 0 8px 20px rgba(11, 15, 25, 0.25);
+        }
+
+        .btn-light {
+            background: rgba(255, 255, 255, 0.95);
+            color: #0b2540;
+        }
+
+        .coming {
+            background: rgba(255, 255, 255, 0.12);
+            color: rgba(255, 255, 255, 0.8);
+            pointer-events: none;
+        }
+
+        /* --- AI Special hover glow --- */
+        .app-card.ai-card:hover {
+            box-shadow: 0 14px 48px rgba(3, 169, 244, 0.18);
+            border-color: rgba(3, 169, 244, 0.18);
+            transform: translateY(-8px) scale(1.02);
+        }
+
+        /* --- Footer --- */
+        .card-footer {
+            margin-top: 22px;
+            color: rgba(255, 255, 255, 0.75);
+            font-size: 13px;
+        }
+
+        @media (max-width:560px) {
+            .logo {
+                font-size: 40px;
+            }
+
+            .card {
+                padding: 20px;
+            }
         }
     </style>
+
+    <script type="module">
+        import { monitorAuthState, logout } from './js/auth.js';
+
+        const authContainer = document.getElementById('auth-container');
+        const adminLink = document.getElementById('adminLink');
+
+        monitorAuthState((user) => {
+            if (user) {
+                authContainer.innerHTML = `
+                    <div style="margin-bottom:16px; font-size:14px; color:rgba(255,255,255,0.9);">
+                        <span>Welcome, <strong>${user.displayName || user.email}</strong></span>
+                        <button id="logoutBtn" style="background:none; border:none; color:#3b82f6; cursor:pointer; text-decoration:underline; margin-left:10px;">Logout</button>
+                    </div>
+                `;
+                document.getElementById('logoutBtn').addEventListener('click', logout);
+
+                // Show Admin link if admin
+                if (user.role === 'admin') {
+                    adminLink.style.display = 'inline-block';
+                }
+
+                // Enable protected links
+                document.querySelectorAll('.protected-link').forEach(el => {
+                    el.classList.remove('coming');
+                    el.setAttribute('href', el.dataset.href);
+                    el.removeAttribute('aria-disabled');
+                    el.textContent = 'Open';
+                });
+
+            } else {
+                authContainer.innerHTML = `
+                    <div style="margin-bottom:16px;">
+                        <a href="login/index.html" style="color:#fff; margin-right:10px; text-decoration:none; font-weight:600;">Sign In</a>
+                        <a href="signup/index.html" style="color:#3b82f6; text-decoration:none; font-weight:600;">Sign Up</a>
+                    </div>
+                `;
+                adminLink.style.display = 'none';
+            }
+        });
+    </script>
 </head>
+
 <body>
     <div class="landing-wrap">
         <div class="card" role="main" aria-label="Astravyn landing">
+            <div id="auth-container" style="text-align:right;"></div>
             <h1 class="logo">Astravyn</h1>
             <p class="tagline">Discover, Create & Connect — The Astravyn Way</p>
-            <p class="sub">Because every idea deserves a place to shine. Explore elegant tools and apps — growing from one hub.</p>
+            <p class="sub">Because every idea deserves a place to shine. Explore elegant tools and apps — growing from
+                one hub.</p>
 
-            <div style="margin-top:18px">
-                <a class="ts-open-btn" href="timesheet/index.html" target="_blank" rel="noopener noreferrer">Open Timesheet — Free to use</a>
+            <!-- Top buttons -->
+            <div class="cta-row" aria-hidden="false">
+                <a class="ts-open-btn" href="timesheet/index.html" target="_blank" rel="noopener noreferrer">
+                    🕒 Open Timesheet — Free to use
+                </a>
+                <a class="ai-launch-btn" href="ai/index.html" target="_blank" rel="noopener noreferrer">
+                    🤖 Launch AI Studio
+                </a>
             </div>
 
+            <!-- Apps Grid -->
             <div class="apps-grid" aria-live="polite">
+                <!-- Timesheet -->
                 <div class="app-card">
                     <div class="app-title">⏱ Timesheet Tracker</div>
-                    <div class="app-desc">Quickly mark attendance, export detailed CSV/XLSX reports, and keep monthly summaries.</div>
+                    <div class="app-desc">Quickly mark attendance, export detailed CSV/XLSX reports, and keep monthly
+                        summaries.</div>
                     <div class="app-actions">
-                        <a class="btn btn-light" href="timesheet/index.html" target="_blank" rel="noopener noreferrer">Open</a>
+                        <a class="btn btn-light" href="timesheet/index.html" target="_blank"
+                            rel="noopener noreferrer">Open</a>
                         <a class="btn coming" href="#" aria-disabled="true">Mobile App (Soon)</a>
                     </div>
                 </div>
 
+                <!-- AI Studio -->
+                <div class="app-card ai-card">
+                    <div class="app-title">🤖 AI Studio</div>
+                    <div class="app-desc">Generate AI images, portraits, and creative morphs with one click — experience
+                        AstraVyn’s AI magic.</div>
+                    <div class="app-actions">
+                        <a class="btn btn-primary" href="ai/index.html" target="_blank" rel="noopener noreferrer">Open
+                            AI Studio</a>
+                        <a class="btn btn-light" href="#" onclick="alert('Mobile app coming soon!')">Mobile App
+                            (Soon)</a>
+                    </div>
+                </div>
+
+                <!-- Work Planner -->
                 <div class="app-card">
                     <div class="app-title">🗂 Work Planner (coming)</div>
-                    <div class="app-desc">Plan your day, set priorities, and track progress. Light & distraction-free.</div>
+                    <div class="app-desc">Plan your day, set priorities, and track progress. Light & distraction-free.
+                    </div>
                     <div class="app-actions">
                         <a class="btn coming" href="#" aria-disabled="true">Coming Soon</a>
                         <a class="btn coming" href="#" aria-disabled="true">Notify Me</a>
                     </div>
                 </div>
 
+                <!-- Journal -->
                 <div class="app-card">
                     <div class="app-title">✍️ Journal & Notes (coming)</div>
-                    <div class="app-desc">A private place to capture thoughts, drafts and daily notes — syncing later.</div>
+                    <div class="app-desc">A private place to capture thoughts, drafts and daily notes — syncing later.
+                    </div>
                     <div class="app-actions">
                         <a class="btn coming" href="#" aria-disabled="true">Coming Soon</a>
                         <a class="btn coming" href="#" aria-disabled="true">Notify Me</a>
                     </div>
                 </div>
 
+                <!-- Connect -->
                 <div class="app-card">
                     <div class="app-title">💬 Connect (coming)</div>
-                    <div class="app-desc">Light communication tools for teams and communities — simple, secure, private.</div>
+                    <div class="app-desc">Light communication tools for teams and communities — simple, secure, private.
+                    </div>
                     <div class="app-actions">
                         <a class="btn coming" href="#" aria-disabled="true">Coming Soon</a>
                         <a class="btn coming" href="#" aria-disabled="true">Notify Me</a>
+                    </div>
+                </div>
+
+                <!-- Dating App -->
+                <div class="app-card" style="border-color: rgba(236, 72, 153, 0.3);">
+                    <div class="app-title" style="color: #f472b6;">💖 Dating</div>
+                    <div class="app-desc">Premium dating experience. Find your match in the stars.</div>
+                    <div class="app-actions">
+                        <a class="btn btn-light protected-link coming" href="#" data-href="dating/index.html"
+                            aria-disabled="true">Sign In to Access</a>
                     </div>
                 </div>
             </div>
 
-            <div class="card-footer">© 2025 Astravyn. Built with care — new apps arriving regularly.</div>
+            <div class="card-footer">
+                © 2025 Astravyn. Built with care — new apps arriving regularly.
+                <a id="adminLink" href="admin/index.html"
+                    style="color:rgba(255,255,255,0.4); text-decoration:none; margin-left:10px; display:none;">Admin</a>
+            </div>
         </div>
     </div>
 </body>
+
 </html>

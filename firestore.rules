@@ -1,0 +1,38 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper: Check if user has 'admin' role in their user document
+    function isAdmin() {
+      return request.auth != null && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
+    }
+
+    // Helper: Check if user is accessing their own document
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    // Users Collection: STRICT
+    // - Owner can read/write their own doc.
+    // - Adming can read/write ANY doc.
+    match /users/{userId} {
+      allow read, write: if isOwner(userId) || isAdmin();
+    }
+
+    // Profiles (Dating App): 
+    // - All authenticated users can read (to verify matches).
+    // - Owner can write their own.
+    // - Admin can write any.
+    match /profiles/{userId} {
+      allow read: if request.auth != null;
+      allow write: if isOwner(userId) || isAdmin();
+    }
+
+    // Default: Deny everything else unless Admin
+    match /{document=**} {
+      allow read, write: if isAdmin();
+    }
+  }
+}

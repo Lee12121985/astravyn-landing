@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Astravyn Dating</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">Astravyn Dating</div>
+            <div id="user-status" style="font-size: 14px; color: var(--text-muted);"></div>
+        </header>
+
+        <main id="app-content">
+            <div id="loading" style="text-align:center; padding: 40px;">Loading...</div>
+        </main>
+    </div>
+
+    <nav class="bottom-nav" id="main-nav" style="display:none;">
+        <button class="nav-btn active" data-target="discover">🔥</button>
+        <button class="nav-btn" data-target="matches">💬</button>
+        <button class="nav-btn" data-target="profile">👤</button>
+    </nav>
+
+    <!-- Templates -->
+    <template id="onboarding-template">
+        <div class="card">
+            <h2>Setup Profile</h2>
+            <p class="text-muted">Tell us about yourself to get started.</p>
+            <form id="onboarding-form">
+                <label>Display Name</label>
+                <input type="text" name="name" required>
+
+                <label>Age</label>
+                <input type="number" name="age" required min="18" max="120">
+
+                <label>Gender</label>
+                <select name="gender" required>
+                    <option value="">Select...</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Non-binary">Non-binary</option>
+                    <option value="Other">Other</option>
+                </select>
+
+                <label>Bio</label>
+                <textarea name="bio" rows="3" placeholder="What makes you tick?"></textarea>
+
+                <label>Location</label>
+                <input type="text" name="location" placeholder="City, Country">
+
+                <label>Interests (comma separated)</label>
+                <input type="text" name="interests" placeholder="Music, Travel, Coding...">
+
+                <label>Profile Photo URL</label>
+                <input type="url" name="photoUrl" placeholder="https://..." required>
+
+                <button type="submit" class="btn">Save Profile</button>
+            </form>
+        </div>
+    </template>
+
+    <template id="discover-template">
+        <div id="card-stack">
+            <!-- Cards go here -->
+        </div>
+        <div id="no-more-profiles" class="card hidden" style="text-align:center;">
+            <h3>No more profiles!</h3>
+            <p>Check back later for more matches.</p>
+        </div>
+    </template>
+
+    <template id="matches-template">
+        <div class="card">
+            <h2>Your Matches</h2>
+            <div id="matches-list">
+                <!-- List items -->
+            </div>
+            <div id="no-matches" class="text-muted" style="text-align:center; padding:20px;">
+                No matches yet. Keep swiping!
+            </div>
+        </div>
+    </template>
+
+    <template id="profile-template">
+        <div class="card">
+            <div style="text-align:center; margin-bottom:20px;">
+                <img id="my-photo" src="" class="avatar" style="width:100px; height:100px;">
+                <h2 id="my-name"></h2>
+            </div>
+            <button id="edit-profile-btn" class="btn btn-outline" style="margin-bottom:12px;">Edit Profile</button>
+            <button id="logout-btn" class="btn btn-outline" style="border-color:#ef4444; color:#ef4444;">Sign
+                Out</button>
+        </div>
+    </template>
+
+    <script type="module" src="app.js"></script>
+</body>
+
+</html>

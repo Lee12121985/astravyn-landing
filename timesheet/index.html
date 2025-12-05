@@ -157,6 +157,10 @@
     .controls-inline{display:flex;gap:8px;align-items:center}
     /* sticky summary panel on tall screens */
     .right .card{position:sticky;top:28px}
+
+    /* small stack to put Send below export buttons without changing theme */
+    .top-actions { display:flex; gap:12px; align-items:flex-start; }
+    .top-actions-col { display:flex; flex-direction:column; gap:8px; align-items:flex-end; }
   </style>
 </head>
 <body>
@@ -164,9 +168,18 @@
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <h2 style="margin:0;font-size:20px">Attendance Details — <span id="headingMonth">October 2025</span></h2>
-        <div style="display:flex;gap:8px">
-          <button id="btnExport" class="btn-3d btn-accent" title="Export as Excel (.xlsx)">Export Excel</button>
-          <button id="btnExportCSV" class="btn-3d btn-flat" title="Export as CSV (.csv)">Export CSV</button>
+        <!-- top-actions wraps export buttons and the send stack -->
+        <div class="top-actions">
+          <div style="display:flex;gap:8px;align-items:center">
+            <button id="btnExport" class="btn-3d btn-accent" title="Export as Excel (.xlsx)">Export Excel</button>
+            <button id="btnExportCSV" class="btn-3d btn-flat" title="Export as CSV (.csv)">Export CSV</button>
+          </div>
+
+          <!-- column stack: Send button placed below (visually) in a column so it sits under exports -->
+          <div class="top-actions-col">
+            <!-- You said place Send below exports — keeping visual grouping -->
+            <button id="btnSendTop" class="btn-3d btn-accent" title="Open send dialog">Send</button>
+          </div>
         </div>
       </div>
 
@@ -245,6 +258,7 @@
     </div>
   </div>
 
+  <!-- SEND MODAL (injected by JS when Send clicked) -->
   <script type="module">
     // 1. FIREBASE V9 MODULAR IMPORTS
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js';
@@ -266,7 +280,6 @@
     // Note: getAnalytics() is called to initialize the service,
     // but actual event logging requires explicit calls (not done in this app)
     const analytics = getAnalytics(firebaseApp);
-
 
     // 2. MAIN APPLICATION LOGIC (Encapsulated in a function)
     (function(){
@@ -308,6 +321,7 @@
       const btnExportCSV = document.getElementById('btnExportCSV');
       const btnMarkWeekends = document.getElementById('btnMarkWeekends');
       const btnClearMonth = document.getElementById('btnClearMonth');
+      const btnSendTop = document.getElementById('btnSendTop');
 
       // Initialize month/year selectors if present
       if(selectMonth){
@@ -525,9 +539,7 @@
         XLSX.writeFile(wb, `${state.name.replace(/\s+/g,'_')}_${monthNames[m]}_${y}.xlsx`);
       }
 
-      function exportExcelSafe(){
-        try { exportExcel(); } catch(e){ console.error('Export Excel failed:', e); alert('Export Excel failed: '+(e && e.message)); }
-      }
+      function exportExcelSafe(){ try { exportExcel(); } catch(e){ console.error('Export Excel failed:', e); alert('Export Excel failed: '+(e && e.message)); } }
 
       function markWeekendsAsHoliday(){
         const y = state.year, m = state.monthIndex, total = daysInMonth(y,m);
@@ -549,6 +561,218 @@
         renderCalendar();
       }
 
+      // ---------------- createExcelBlobForSend ----------------
+      function createExcelBlobForSend(){
+        // Build the same 'data' used by exportExcel but return a Blob
+        const y = state.year, m = state.monthIndex, total = daysInMonth(y,m);
+        let present=0, leave=0, comp=0, hol=0;
+        for(let d=1; d<=total; d++){
+          const st = state.statusMap[isoDate(y,m,d)] || '';
+          if(st==='P') present++;
+          if(st==='L') leave++;
+          if(st==='C') comp++;
+          if(st==='H') hol++;
+        }
+
+        const workingDays = Math.max(0, total - hol);
+        const attendancePercent = workingDays > 0 ? (present / workingDays) * 100 : 0;
+        const compOffPercent = hol > 0 ? (comp / hol) * 100 : 0;
+
+        const data = [];
+        data.push(['Company Name', state.company]);
+        data.push(['Employee Name', state.name]);
+        data.push(['Employee ID', state.empId]);
+        data.push(['Month', `${monthNames[m]} ${y}`]);
+        data.push([]);
+        data.push(['Summary','Value']);
+        data.push(['Total Days in Month', total]);
+        data.push(['Total Present', present]);
+        data.push(['Total Leave', leave]);
+        data.push(['Total Comp-off', comp]);
+        data.push(['Total Holiday', hol]);
+        data.push(['Working Days', workingDays]);
+        data.push(['Attendance %', `${attendancePercent.toFixed(1)}%`]);
+        data.push(['Comp-off of Holiday', `${comp} / ${hol} (${compOffPercent.toFixed(1)}%)`]);
+        data.push([]);
+        data.push(['Date','Day','Status']);
+        for(let d=1; d<=total; d++){
+          const iso = isoDate(y,m,d);
+          const st = state.statusMap[iso] || '';
+          data.push([ formatMDY(y,m,d), formatDayName(y,m,d), st ]);
+        }
+
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Attendance");
+        const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        const blob = new Blob([wbout], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+        return blob;
+      }
+
+      // ---------------- helper download & compose openers ----------------
+      function downloadBlob(blob, filename){
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(()=>URL.revokeObjectURL(url), 15000);
+      }
+
+      function openGmailCompose(to, subject, body){
+        const base = 'https://mail.google.com/mail/?view=cm&fs=1';
+        const params = `&to=${encodeURIComponent(to)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        window.open(base + params, '_blank');
+      }
+
+      function openOutlookCompose(to, subject, body){
+        const base = 'https://outlook.office.com/mail/deeplink/compose';
+        const params = `?to=${encodeURIComponent(to)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        window.open(base + params, '_blank');
+      }
+
+      function openMailtoCompose(to, subject, body){
+        const mailto = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        window.location.href = mailto;
+      }
+
+      // ---------------- SEND MODAL (interactive) ----------------
+      function createSendModal(prefill = {}) {
+        // If exists, return it
+        if(document.getElementById('sendModal')) return document.getElementById('sendModal');
+
+        const modal = document.createElement('div');
+        modal.id = 'sendModal';
+        modal.style.position = 'fixed';
+        modal.style.inset = '0';
+        modal.style.display = 'flex';
+        modal.style.alignItems = 'center';
+        modal.style.justifyContent = 'center';
+        modal.style.zIndex = '1400';
+        modal.style.background = 'rgba(6,11,15,0.4)';
+        modal.innerHTML = `
+          <div style="background:var(--card);border-radius:12px;padding:18px;max-width:720px; width:100%; box-shadow:0 16px 48px rgba(11,15,25,0.35);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+              <div style="font-weight:700;font-size:16px">Send Timesheet</div>
+              <button id="sendModalClose" style="border:none;background:transparent;font-size:18px;cursor:pointer">✕</button>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+              <label style="font-size:13px;color:var(--muted)">To (company email)
+                <input id="modalTo" type="email" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #d1d5db" />
+              </label>
+              <label style="font-size:13px;color:var(--muted)">Subject
+                <input id="modalSubject" type="text" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #d1d5db" />
+              </label>
+
+              <label style="font-size:13px;color:var(--muted)">Sender name
+                <input id="modalSenderName" type="text" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #d1d5db" />
+              </label>
+              <label style="font-size:13px;color:var(--muted)">Sender email / phone
+                <div style="display:flex;gap:8px">
+                  <input id="modalSenderEmail" type="email" style="flex:1;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #d1d5db" />
+                  <input id="modalSenderPhone" type="text" style="width:140px;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #d1d5db" />
+                </div>
+              </label>
+            </div>
+
+            <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:8px">Message (editable)</label>
+            <textarea id="modalBody" rows="7" style="width:100%;padding:10px;border-radius:8px;border:1px solid #d1d5db;resize:vertical"></textarea>
+
+            <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+              <button id="modalDownloadOnly" class="btn-3d btn-flat">Download Only</button>
+              <button id="modalGmail" class="btn-3d btn-accent">Download & Gmail</button>
+              <button id="modalOutlook" class="btn-3d btn-flat">Download & Outlook</button>
+              <button id="modalMailto" class="btn-control btn-clear">Download & Mail App</button>
+            </div>
+          </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        // prefill controls from supplied values
+        const modalTo = modal.querySelector('#modalTo');
+        const modalSubject = modal.querySelector('#modalSubject');
+        const modalSenderName = modal.querySelector('#modalSenderName');
+        const modalSenderEmail = modal.querySelector('#modalSenderEmail');
+        const modalSenderPhone = modal.querySelector('#modalSenderPhone');
+        const modalBody = modal.querySelector('#modalBody');
+
+        modal.querySelector('#sendModalClose').addEventListener('click', ()=> modal.remove());
+        modal.addEventListener('click', (e)=> { if(e.target === modal) modal.remove(); });
+
+        // apply prefill
+        modalTo.value = prefill.to || '';
+        modalSenderName.value = prefill.senderName || '';
+        modalSenderEmail.value = prefill.senderEmail || '';
+        modalSenderPhone.value = prefill.senderPhone || '';
+        modalSubject.value = prefill.subject || `Timesheet - ${state.name} - ${monthNames[state.monthIndex]} ${state.year}`;
+        modalBody.value = prefill.body || `Hi sir,\n\nI have attached the timesheet for ${monthNames[state.monthIndex]} ${state.year} for ${state.name}. Kindly review it for salary processing.\n\nBest regards,\n${state.name}\n${prefill.senderPhone || ''}\n${prefill.senderEmail || ''}`;
+
+        // button handlers
+        modal.querySelector('#modalDownloadOnly').addEventListener('click', ()=> {
+          const blob = createExcelBlobForSend();
+          const filename = `${state.name.replace(/\s+/g,'_')}_${monthNames[state.monthIndex]}_${state.year}.xlsx`;
+          downloadBlob(blob, filename);
+          alert('Timesheet downloaded. Attach it to your email client when composing.');
+        });
+
+        modal.querySelector('#modalGmail').addEventListener('click', ()=> {
+          const to = modalTo.value.trim();
+          if(!to){ alert('Please enter recipient email'); return; }
+          const subject = modalSubject.value.trim();
+          const body = modalBody.value;
+          const blob = createExcelBlobForSend();
+          const filename = `${state.name.replace(/\s+/g,'_')}_${monthNames[state.monthIndex]}_${state.year}.xlsx`;
+          downloadBlob(blob, filename);
+          openGmailCompose(to, subject, body);
+          modal.remove();
+        });
+
+        modal.querySelector('#modalOutlook').addEventListener('click', ()=> {
+          const to = modalTo.value.trim();
+          if(!to){ alert('Please enter recipient email'); return; }
+          const subject = modalSubject.value.trim();
+          const body = modalBody.value;
+          const blob = createExcelBlobForSend();
+          const filename = `${state.name.replace(/\s+/g,'_')}_${monthNames[state.monthIndex]}_${state.year}.xlsx`;
+          downloadBlob(blob, filename);
+          openOutlookCompose(to, subject, body);
+          modal.remove();
+        });
+
+        modal.querySelector('#modalMailto').addEventListener('click', ()=> {
+          const to = modalTo.value.trim();
+          if(!to){ alert('Please enter recipient email'); return; }
+          const subject = modalSubject.value.trim();
+          const body = modalBody.value;
+          const blob = createExcelBlobForSend();
+          const filename = `${state.name.replace(/\s+/g,'_')}_${monthNames[state.monthIndex]}_${state.year}.xlsx`;
+          downloadBlob(blob, filename);
+          openMailtoCompose(to, subject, body);
+          modal.remove();
+        });
+
+        return modal;
+      }
+
+      // -------------- send button top click handler --------------
+      function openSendDialog(){
+        // assemble prefill from current inputs if available
+        const companyEmailCandidate = ''; // if you keep a company email field elsewhere, fill it
+        const prefill = {
+          to: companyEmailCandidate || '',
+          subject: `Timesheet - ${state.name} - ${monthNames[state.monthIndex]} ${state.year}`,
+          senderName: state.name || '',
+          senderEmail: '', // you can map an input if present
+          senderPhone: '', // map if present
+          body: ''
+        };
+        createSendModal(prefill);
+      }
+
       // Events
       if(selectMonth) selectMonth.addEventListener('change', ()=>{ state.monthIndex = Number(selectMonth.value); renderHeading(); renderCalendar(); });
       if(selectYear) selectYear.addEventListener('change', ()=>{ state.year = Number(selectYear.value); renderHeading(); renderCalendar(); });
@@ -559,6 +783,7 @@
       if(btnExportCSV) btnExportCSV.addEventListener('click', exportCSV);
       if(btnMarkWeekends) btnMarkWeekends.addEventListener('click', ()=>{ markWeekendsAsHoliday(); });
       if(btnClearMonth) btnClearMonth.addEventListener('click', ()=>{ if(confirm('Clear statuses for this month?')) clearMonth(); });
+      if(btnSendTop) btnSendTop.addEventListener('click', openSendDialog);
 
       // initial render
       renderHeading();
