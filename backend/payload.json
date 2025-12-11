@@ -1,0 +1,1 @@
+{"company":"ACME","employeeName":"Jane Doe","payPeriod":"Dec 2025","attendance":[{"date":"2025-12-01","day":"Mon","status":"P"}],"summary":{"totalPresent":1,"totalLeave":0,"totalHoliday":0,"attendancePercent":100}}
