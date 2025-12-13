@@ -1,0 +1,14 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /datingProfiles/{userId}/{allPaths=**} {
+      allow read;
+      allow write: if request.auth != null && (request.auth.uid == userId || firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin');
+    }
+    // Fallback for other paths if needed (e.g. strict default)
+    match /{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+  }
+}

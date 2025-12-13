@@ -1,34 +1,66 @@
-# Authorization & Authentication Notes (AUTH_NOTES.md)
+# Authentication & User Data Notes
 
-## Firebase Initialization
-- **Config File**: `js/firebase-config.js`
-- **Initialized Services**: Auth, Firestore, Storage.
-- **Project ID**: `astravyn-landing`
+## Firestore Data Schema
+### Collection: `users`
+Document ID is the Firebase Auth `uid`.
 
-## Authentication Code Location
-- **Core Logic**: `js/auth.js`
-  - `signUp(email, password, name)`: Creates Auth user & Firestore user doc.
-  - `signIn(email, password)`: Logs in & checks if blocked.
-  - `logout()`: Signs out.
-  - `requireAuth()`: Route guard for protected pages.
-  - `requireAdmin()`: Route guard for admin pages.
-  - `monitorAuthState()`: Real-time user listener.
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `uid` | string | Matches doc ID |
+| `email` | string | User email |
+| `role` | string | "admin" or "user" |
+| `isBlocked` | boolean | If true, access is denied |
+| `createdAt` | timestamp | Server timestamp at signup |
+| `displayName` | string | User's full name |
+| `photoURL` | string | (Optional) Profile pic URL |
+| `lastLogin` | timestamp | Updated on every login |
 
-## Page Protection Status
-| Page | Path | Protection Level | Guard Used |
-| :--- | :--- | :--- | :--- |
-| **Landing** | `index.html` | Public | None |
-| **Login** | `login/index.html` | Public | None (Redirects if logged in? No) |
-| **Signup** | `signup/index.html` | Public | None |
-| **AI Studio** | `ai/index.html` | Protected | `requireAuth` (planned/implemented) |
-| **Dating App** | `dating/index.html` | Protected | `requireAuth` (implied) |
-| **Admin Panel** | `admin/index.html` | Admin Only | `requireAdmin` |
-| **TimeSheet** | `timesheet/index.html`| Public | None |
+## Key Files
 
-## Admin Role Strategy
-- **Assignment**: Hardcoded check in `signUp` function.
-  - If `email === "admin@astravin.com"`, set `role: "admin"`.
-  - Else, set `role: "user"`.
-- **Privileges**:
-  - **Admin**: Full read/write access to all collections (enforced by Firestore Rules & client checks).
-  - **User**: Read/write access ONLY to `users/{ownUid}` and specific app data (e.g. implementation specific).
+### Configuration
+- `js/firebase-config.js`: Initializes and exports `app`, `auth`, `db`.
+
+### Auth Logic
+- `signup/index.html`: Handles user signup. Checks for "admin@astravin.com" to assign "admin" role. Creates `users` document.
+- `login/index.html`: Handles login. Updates `lastLogin` and checks `isBlocked`. Signs out if blocked.
+- `js/auth-manager.js`: **[NEW]** Global listener. Fetches user profile on load.
+
+## Firestore Security Rules
+Located in `firestore.rules`.
+
+```javascript
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    function isAdmin() {
+      return request.auth != null && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
+    }
+
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    match /users/{userId} {
+      allow read, update, delete: if isOwner(userId) || isAdmin();
+      allow create: if request.auth != null;
+    }
+
+    match /profiles/{userId} {
+      allow read: if request.auth != null;
+      allow write: if isOwner(userId) || isAdmin();
+    }
+    
+    match /{document=**} {
+      allow read, write: if isAdmin();
+    }
+  }
+}
+```
+
+## Admin Logic
+- Use email `admin@astravin.com` to sign up as Admin.
+- Admins bypass all rule restrictions (can read/write all docs).
+- Logic is enforced via Firestore Rules `isAdmin()` check.

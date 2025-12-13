@@ -2,103 +2,213 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Astravyn Dating</title>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <title>Astravyn Dating – Home</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="/dating/dating-theme.css" />
+  <meta name="description"
+    content="Astravyn Match - Premium dating and matrimony app for finding serious connections. Verified profiles, community focus, and safe environment." />
+  <meta name="keywords"
+    content="dating, matrimony, matchmaking, serious relationships, verified profiles, kerala dating" />
+  <script type="module" src="/dating/user-context.js"></script>
+  <script type="module" src="/dating/app.js"></script>
+  <script type="module" src="/dating/home.js"></script>
 </head>
 
-<body>
-    <div class="container">
-        <header>
-            <div class="logo">Astravyn Dating</div>
-            <div id="user-status" style="font-size: 14px; color: var(--text-muted);"></div>
-        </header>
+<body data-page="home">
+  <div class="page-wrapper">
+    <!-- Top Nav -->
+    <header class="dating-nav">
+      <div class="dating-nav-inner">
+        <div class="brand">
+          <div class="brand-logo">A</div>
+          <div class="brand-text">
+            <span class="brand-text-main">Astravyn Match</span>
+            <span class="brand-text-sub">Dating & Matrimony</span>
+          </div>
+        </div>
 
-        <main id="app-content">
-            <div id="loading" style="text-align:center; padding: 40px;">Loading...</div>
-        </main>
+        <nav class="nav-links">
+          <a href="/dating/index.html" data-nav="home">Home</a>
+          <a href="/dating/matches.html" data-nav="matches">Matches</a>
+          <a href="/dating/search.html" data-nav="search">Search</a>
+          <a href="/dating/profile.html" data-nav="profile">Profile</a>
+          <a href="/dating/settings.html" data-nav="settings">Settings</a>
+        </nav>
+
+        <!-- updated nav-avatar -->
+        <div class="nav-avatar" id="nav-user">
+          <div id="nav-avatar-photo" style="display:none;">
+            <img id="nav-avatar-img" alt="avatar" style="width:34px;height:34px;border-radius:50%;object-fit:cover;" />
+          </div>
+          <div id="nav-avatar-initial" class="nav-avatar-initial">LC</div>
+          <div id="nav-avatar-name" class="nav-avatar-name">You</div>
+        </div>
+      </div>
+    </header>
+
+    <main class="main">
+      <div class="container">
+        <!-- Hero -->
+        <section class="card card-soft hero-card">
+          <!-- Self Profile Container (injected by home.js) -->
+          <div id="self-profile-container" style="display:none; gap:1.5rem; align-items:center; margin-bottom:1rem;">
+          </div>
+
+          <div id="hero-default-content">
+            <div class="hero-badge">
+              💛 Premium Hybrid Experience
+              <span class="chip">Verified profiles · Kerala focus</span>
+            </div>
+            <h1 class="hero-title">
+              Welcome back, <span class="hero-highlight">find connections that truly match you.</span>
+            </h1>
+            <p class="hero-text">
+              Astravyn blends the trust of matrimony with the comfort of modern dating.
+              Explore curated matches based on your values, lifestyle and preferences.
+            </p>
+
+            <div class="hero-cta">
+              <a href="matches.html" class="btn btn-primary">View Today’s Matches</a>
+              <a href="search.html" class="btn btn-ghost">Advanced Search</a>
+            </div>
+
+            <div class="hero-stats">
+              <div class="hero-stat">
+                <span id="stat-matches">—</span>
+                <span>Compatible matches waiting</span>
+              </div>
+              <div class="hero-stat">
+                <span id="stat-verified">—</span>
+                <span>Profiles with verified ID</span>
+              </div>
+              <div class="hero-stat">
+                <span id="stat-new">—</span>
+                <span>New people joined today</span>
+              </div>
+            </div>
+          </div>
+
+          <aside class="hero-illustration">
+            <div class="hero-illustration-main">Your compatibility radar</div>
+            <p style="font-size:.78rem;color:var(--text-soft);margin:0;">
+              We analyse interests, traditions, language & lifestyle to surface
+              the most relevant profiles.
+            </p>
+
+            <div class="hero-avatars-row">
+              <div class="hero-mini-avatar"></div>
+              <div class="hero-mini-avatar"></div>
+              <div class="hero-mini-avatar"></div>
+              <span style="margin-left:.5rem;font-size:.75rem;color:var(--text-soft);">
+                +134 online now
+              </span>
+            </div>
+
+            <div style="margin-top:.8rem;font-size:.78rem;">
+              <span class="chip">Safe · Private · Family Friendly</span>
+            </div>
+          </aside>
+        </section>
+
+        <!-- Quick Actions -->
+        <section class="quick-actions">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Quick actions</h2>
+              <p class="section-subtitle">Jump directly to what matters right now.</p>
+            </div>
+          </div>
+
+          <div class="quick-actions-grid">
+            <article class="card card-soft">
+              <div class="quick-card-title">Complete your profile</div>
+              <p class="quick-card-text">
+                Add education, community & lifestyle details for better match accuracy.
+              </p>
+              <a href="profile.html" class="btn btn-primary">Update profile</a>
+            </article>
+
+            <article class="card card-soft">
+              <div class="quick-card-title">View compatible matches</div>
+              <p class="quick-card-text">
+                Based on your preferences and family expectations.
+              </p>
+              <a href="matches.html" class="btn btn-ghost">See matches</a>
+            </article>
+
+            <article class="card card-soft">
+              <div class="quick-card-title">Search by location</div>
+              <p class="quick-card-text">
+                Filter by city, district, native place or working location.
+              </p>
+              <a href="search.html" class="btn btn-ghost">Open search</a>
+            </article>
+          </div>
+        </section>
+
+        <!-- Recently Active -->
+        <section style="margin-top:1.6rem;">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Recently active & compatible</h2>
+              <p class="section-subtitle">
+                Handpicked suggestions aligned with your preferences.
+              </p>
+            </div>
+            <span class="chip">Updated just now</span>
+          </div>
+
+          <div class="grid matches-grid">
+            <!-- placeholder cards will be replaced by app.js -->
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <footer class="footer" style="text-align:center; padding: 2rem; color: var(--text-muted); font-size: 0.9rem;">
+      Astravyn Match · Secure, family-friendly connections. <br>
+      <span style="font-size: 0.85rem; margin-top: 0.5rem; display: inline-block;">
+        Admin: admin@astravyn.com | Support: support@astravyn.com
+      </span>
+    </footer>
+
+    <!-- Public Profile Modal (Modern) -->
+    <div id="public-profile-modal" class="modal-overlay">
+      <div class="modal-content">
+        <button class="modal-close" id="modal-close-btn">&times;</button>
+
+        <div class="modal-gallery" id="modal-gallery">
+          <!-- Images injected here -->
+        </div>
+
+        <div class="modal-body">
+          <div class="modal-title-row">
+            <div>
+              <div class="modal-name" id="modal-name">Name</div>
+              <div class="modal-meta" id="modal-meta">Age · Location</div>
+            </div>
+          </div>
+
+          <div class="tag-list" id="modal-tags">
+            <!-- tags -->
+          </div>
+
+          <p id="modal-bio" style="margin: 1rem 0; line-height: 1.6; color: var(--text-main); font-size: 0.95rem;">
+            Bio text...
+          </p>
+
+          <div style="margin-top: 1.5rem; display: flex; gap: 0.5rem; justify-content: flex-end;">
+            <button class="btn btn-primary" style="flex: 1; padding: 0.5rem 1rem;"
+              id="modal-connect-btn">Connect</button>
+            <button class="btn btn-ghost" style="flex: 1; padding: 0.5rem 1rem;" id="modal-video-btn">Video
+              Call</button>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <nav class="bottom-nav" id="main-nav" style="display:none;">
-        <button class="nav-btn active" data-target="discover">🔥</button>
-        <button class="nav-btn" data-target="matches">💬</button>
-        <button class="nav-btn" data-target="profile">👤</button>
-    </nav>
-
-    <!-- Templates -->
-    <template id="onboarding-template">
-        <div class="card">
-            <h2>Setup Profile</h2>
-            <p class="text-muted">Tell us about yourself to get started.</p>
-            <form id="onboarding-form">
-                <label>Display Name</label>
-                <input type="text" name="name" required>
-
-                <label>Age</label>
-                <input type="number" name="age" required min="18" max="120">
-
-                <label>Gender</label>
-                <select name="gender" required>
-                    <option value="">Select...</option>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                    <option value="Non-binary">Non-binary</option>
-                    <option value="Other">Other</option>
-                </select>
-
-                <label>Bio</label>
-                <textarea name="bio" rows="3" placeholder="What makes you tick?"></textarea>
-
-                <label>Location</label>
-                <input type="text" name="location" placeholder="City, Country">
-
-                <label>Interests (comma separated)</label>
-                <input type="text" name="interests" placeholder="Music, Travel, Coding...">
-
-                <label>Profile Photo URL</label>
-                <input type="url" name="photoUrl" placeholder="https://..." required>
-
-                <button type="submit" class="btn">Save Profile</button>
-            </form>
-        </div>
-    </template>
-
-    <template id="discover-template">
-        <div id="card-stack">
-            <!-- Cards go here -->
-        </div>
-        <div id="no-more-profiles" class="card hidden" style="text-align:center;">
-            <h3>No more profiles!</h3>
-            <p>Check back later for more matches.</p>
-        </div>
-    </template>
-
-    <template id="matches-template">
-        <div class="card">
-            <h2>Your Matches</h2>
-            <div id="matches-list">
-                <!-- List items -->
-            </div>
-            <div id="no-matches" class="text-muted" style="text-align:center; padding:20px;">
-                No matches yet. Keep swiping!
-            </div>
-        </div>
-    </template>
-
-    <template id="profile-template">
-        <div class="card">
-            <div style="text-align:center; margin-bottom:20px;">
-                <img id="my-photo" src="" class="avatar" style="width:100px; height:100px;">
-                <h2 id="my-name"></h2>
-            </div>
-            <button id="edit-profile-btn" class="btn btn-outline" style="margin-bottom:12px;">Edit Profile</button>
-            <button id="logout-btn" class="btn btn-outline" style="border-color:#ef4444; color:#ef4444;">Sign
-                Out</button>
-        </div>
-    </template>
-
-    <script type="module" src="app.js"></script>
+  </div>
 </body>
 
 </html>

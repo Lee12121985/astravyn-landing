@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Astravyn – Matches</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="/dating/dating-theme.css" />
+  <script type="module" src="/dating/user-context.js"></script>
+  <script type="module" src="/dating/app.js"></script>
+</head>
+
+<body data-page="matches">
+  <div class="page-wrapper">
+    <header class="dating-nav">
+      <div class="dating-nav-inner">
+        <div class="brand">
+          <div class="brand-logo">A</div>
+          <div class="brand-text">
+            <span class="brand-text-main">Astravyn Match</span>
+            <span class="brand-text-sub">Dating & Matrimony</span>
+          </div>
+        </div>
+        <nav class="nav-links">
+          <a href="/dating/index.html" data-nav="home">Home</a>
+          <a href="/dating/matches.html" data-nav="matches">Matches</a>
+          <a href="/dating/search.html" data-nav="search">Search</a>
+          <a href="/dating/profile.html" data-nav="profile">Profile</a>
+          <a href="/dating/settings.html" data-nav="settings">Settings</a>
+        </nav>
+
+        <!-- updated nav-avatar -->
+        <div class="nav-avatar" id="nav-user">
+          <div id="nav-avatar-photo" style="display:none;">
+            <img id="nav-avatar-img" alt="avatar" style="width:34px;height:34px;border-radius:50%;object-fit:cover;" />
+          </div>
+          <div id="nav-avatar-initial" class="nav-avatar-initial">LC</div>
+          <div id="nav-avatar-name" class="nav-avatar-name">You</div>
+        </div>
+      </div>
+    </header>
+
+    <main class="main">
+      <div class="container">
+        <section>
+          <div class="section-header">
+            <div>
+              <h1 class="section-title">Your curated matches</h1>
+              <p class="section-subtitle">
+                Based on your preferences, community and lifestyle indicators.
+              </p>
+            </div>
+            <span class="chip">Updated today</span>
+          </div>
+
+          <div class="card card-soft" style="margin-bottom:1.1rem;">
+            <div class="filter-bar">
+              <div class="matches-filters">
+                <button class="filter-tab active" data-filter="all">All</button>
+                <button class="filter-tab" data-filter="new">New</button>
+                <button class="filter-tab" data-filter="nearby">Nearby</button>
+                <button class="filter-tab" data-filter="premium">Premium</button>
+              </div>
+              <select class="filter-sort">
+                <option>Sort: Best match</option>
+                <option>Sort: Recently active</option>
+                <option>Sort: Newest first</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="grid matches-grid">
+            <!-- cards will be rendered by app.js -->
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <footer class="footer">
+      Need better matches? Refine your preferences in Profile & Settings.
+    </footer>
+  </div>
+</body>
+
+</html>

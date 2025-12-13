@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Astravyn – Search</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="/dating/dating-theme.css" />
+  <script type="module" src="/dating/user-context.js"></script>
+  <script type="module" src="/dating/app.js"></script>
+</head>
+
+<body data-page="search">
+  <div class="page-wrapper">
+    <header class="dating-nav">
+      <div class="dating-nav-inner">
+        <div class="brand">
+          <div class="brand-logo">A</div>
+          <div class="brand-text">
+            <span class="brand-text-main">Astravyn Match</span>
+            <span class="brand-text-sub">Dating & Matrimony</span>
+          </div>
+        </div>
+        <nav class="nav-links">
+          <a href="/dating/index.html" data-nav="home">Home</a>
+          <a href="/dating/matches.html" data-nav="matches">Matches</a>
+          <a href="/dating/search.html" data-nav="search">Search</a>
+          <a href="/dating/profile.html" data-nav="profile">Profile</a>
+          <a href="/dating/settings.html" data-nav="settings">Settings</a>
+        </nav>
+
+        <!-- updated nav-avatar -->
+        <div class="nav-avatar" id="nav-user">
+          <div id="nav-avatar-photo" style="display:none;">
+            <img id="nav-avatar-img" alt="avatar" style="width:34px;height:34px;border-radius:50%;object-fit:cover;" />
+          </div>
+          <div id="nav-avatar-initial" class="nav-avatar-initial">LC</div>
+          <div id="nav-avatar-name" class="nav-avatar-name">You</div>
+        </div>
+      </div>
+    </header>
+
+    <main class="main">
+      <div class="container">
+        <section>
+          <div class="section-header">
+            <div>
+              <h1 class="section-title">Advanced search</h1>
+              <p class="section-subtitle">
+                Combine filters like age, location, community and lifestyle.
+              </p>
+            </div>
+            <span class="chip">Family-friendly filters</span>
+          </div>
+
+          <div class="search-layout">
+            <!-- Filters (unchanged) -->
+            <aside class="filter-panel">
+              <!-- ... filter UI left untouched ... -->
+              <div class="filter-group">
+                <div class="filter-label" style="display:flex;justify-content:space-between;">
+                  Age range <span id="age-display" style="color:var(--neon-cyan);">24 - 29</span>
+                </div>
+                <div class="range-slider-container">
+                  <input type="range" id="search-age-slider" min="18" max="60" value="24" class="range-slider">
+                </div>
+              </div>
+
+              <div class="filter-group">
+                <div class="filter-label">Location (City)</div>
+                <select class="filter-input search-select" id="search-location" style="width:100%;cursor:pointer;">
+                  <option value="any">Any City</option>
+                  <option value="Kochi">Kochi</option>
+                  <option value="Bangalore">Bangalore</option>
+                  <option value="Mumbai">Mumbai</option>
+                  <option value="Delhi">Delhi</option>
+                  <option value="Chennai">Chennai</option>
+                </select>
+              </div>
+
+              <div class="filter-group">
+                <button class="btn btn-primary" id="btn-search-trigger" style="width:100%">Search Matches</button>
+              </div>
+
+              <!-- other filters remain as in your file -->
+              <!-- ... -->
+            </aside>
+
+            <!-- Results -->
+            <div>
+              <div class="card card-soft" style="margin-bottom:.9rem;">
+                <div class="section-header" style="margin-bottom:0;">
+                  <div>
+                    <div class="section-title" style="font-size:1rem;">Search results</div>
+                    <div class="section-subtitle">Sample results shown; connect to backend later.</div>
+                  </div>
+                  <span class="chip">Showing 6 profiles</span>
+                </div>
+              </div>
+
+              <div class="grid matches-grid">
+                <!-- populated by app.js -->
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <footer class="footer">
+      Tip: Start broad, then slowly narrow filters to find better matches.
+    </footer>
+  </div>
+</body>
+
+</html>

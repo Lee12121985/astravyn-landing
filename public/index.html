@@ -50,6 +50,21 @@
     .pill.C{background:var(--blue);color:#fff}
     .pill.L{background:var(--orange);color:#2f1600}
     .pill.H{background:var(--gray);color:#fff}
+    /* Weekend specific pills (scoped, do not change theme variables) */
+    .pill.ST{background:#3B82F6;color:#fff} /* Saturday - blue */
+    .pill.SU{background:#F97316;color:#fff} /* Sunday - orange */
+
+    .saturday {
+        background-color: #1ABC9C !important;
+        color: white !important;
+        border-radius: 10px;
+    }
+
+    .sunday {
+        background-color: #E67E22 !important;
+        color: white !important;
+        border-radius: 10px;
+    }
 
     .weekday-row{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-bottom:8px}
     .weekday{font-size:13px;color:var(--muted);text-align:center;font-weight:600}
@@ -146,6 +161,8 @@
     .status-cell.C{ background: linear-gradient(180deg, rgba(59,130,246,0.22), rgba(59,130,246,0.08)); color:#06326f; border-left-color:#3b82f6; }
     .status-cell.L{ background: linear-gradient(180deg, rgba(245,158,11,0.22), rgba(245,158,11,0.08)); color:#5c3a00; border-left-color:#f59e0b; }
     .status-cell.H{ background: linear-gradient(180deg, rgba(156,163,175,0.22), rgba(156,163,175,0.08)); color:#1e1e1e; border-left-color:#9ca3af; }
+    .status-cell.ST{ background: linear-gradient(180deg, rgba(59,130,246,0.22), rgba(59,130,246,0.08)); color:#06326f; border-left-color:#3b82f6; }
+    .status-cell.SU{ background: linear-gradient(180deg, rgba(249,115,22,0.22), rgba(249,115,22,0.08)); color:#5c3100; border-left-color:#f97316; }
 
     /* responsive */
     @media (max-width: 900px){
@@ -170,9 +187,12 @@
         <h2 style="margin:0;font-size:20px">Attendance Details — <span id="headingMonth">October 2025</span></h2>
         <!-- top-actions wraps export buttons and the send stack -->
         <div class="top-actions">
-          <div style="display:flex;gap:8px;align-items:center">
+            <div style="display:flex;gap:8px;align-items:center">
             <button id="btnExport" class="btn-3d btn-accent" title="Export as Excel (.xlsx)">Export Excel</button>
             <button id="btnExportCSV" class="btn-3d btn-flat" title="Export as CSV (.csv)">Export CSV</button>
+            <button id="btnExportTemplate" class="btn-3d btn-flat" title="Export using template">Export Template</button>
+            <input id="inputTemplateFile" type="file" accept=".xlsx" style="display:none" />
+            <button id="btnUploadTemplate" class="btn-3d btn-flat" title="Upload custom template (.xlsx)">Upload Template</button>
           </div>
 
           <!-- column stack: Send button placed below (visually) in a column so it sits under exports -->
@@ -196,7 +216,7 @@
           <input id="inputEmpId" value="NE-2047" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #d1d5db">
         </label>
 
-        <div class="controls-inline" style="margin-right:auto;align-items:center;justify-content:flex-start;gap:12px;flex:1">
+          <div class="controls-inline" style="margin-right:auto;align-items:center;justify-content:flex-start;gap:12px;flex:1">
           <label style="margin:0;font-weight:500">Month
             <select id="selectMonth" style="margin-left:6px;padding:8px;border-radius:8px"></select>
           </label>
@@ -204,14 +224,14 @@
             <select id="selectYear" style="margin-left:6px;padding:8px;border-radius:8px"></select>
           </label>
 
-          <button id="btnMarkWeekends" class="btn-control btn-weekends">Mark Weekends H</button>
+          <button id="btnMarkWeekends" class="btn-control btn-weekends">Mark Weekends</button>
           <button id="btnClearMonth" class="btn-control btn-clear">Clear Month</button>
         </div>
       </div>
 
       <div class="layout">
         <div class="left card" style="padding:18px">
-          <div class="small" style="margin-bottom:8px">Click a date to cycle status: <strong>Empty → P → C → L → H →</strong></div>
+          <div class="small" style="margin-bottom:8px">Click a date to cycle status: <strong>Empty → P → C → L → H / ST / SU →</strong></div>
           <div class="weekday-row" aria-hidden="true">
             <div class="weekday">Mon</div><div class="weekday">Tue</div><div class="weekday">Wed</div>
             <div class="weekday">Thu</div><div class="weekday">Fri</div><div class="weekday">Sat</div><div class="weekday">Sun</div>
@@ -322,6 +342,10 @@
       const btnMarkWeekends = document.getElementById('btnMarkWeekends');
       const btnClearMonth = document.getElementById('btnClearMonth');
       const btnSendTop = document.getElementById('btnSendTop');
+      // Template upload controls
+      const inputTemplateFile = document.getElementById('inputTemplateFile');
+      const btnUploadTemplate = document.getElementById('btnUploadTemplate');
+      let customTemplateFile = null; // File selected by user for custom template
 
       // Initialize month/year selectors if present
       if(selectMonth){
@@ -368,9 +392,17 @@
 
         cell.addEventListener('click', ()=>{ 
           const cur = state.statusMap[iso] || '';
-          let idx = CYCLE.indexOf(cur); if(idx===-1) idx=0;
+          // Normalize weekend-specific statuses to H for cycling logic so users can cycle through H slot
+          const normCur = (cur === 'ST' || cur === 'SU') ? 'H' : cur;
+          let idx = CYCLE.indexOf(normCur); if(idx===-1) idx=0;
           idx = (idx + 1) % CYCLE.length;
-          const next = CYCLE[idx];
+          let next = CYCLE[idx];
+          // If cycle selected 'H' and this date is a weekend, map to ST or SU
+          const dow = new Date(y,m,d).getDay();
+          if(next === 'H'){
+            if(dow === 6) next = 'ST';
+            else if(dow === 0) next = 'SU';
+          }
           if(next === '') delete state.statusMap[iso]; else state.statusMap[iso] = next;
           updatePill(pillWrap, state.statusMap[iso] || '');
           // Update ARIA status
@@ -420,8 +452,12 @@
           if(st==='P') present++;
           if(st==='L') leave++;
           if(st==='C') comp++;
-          if(st==='H') hol++;
+          // Count ST/SU as holidays as well as manual H
+          if(st==='H' || st==='ST' || st==='SU') hol++;
           const tr = document.createElement('tr');
+          const dow = new Date(y, m, d).getDay();
+          if (dow === 6) tr.classList.add("saturday");
+          if (dow === 0) tr.classList.add("sunday");
           const td1 = document.createElement('td'); td1.textContent = formatMDY(y,m,d);
           const td2 = document.createElement('td'); td2.textContent = formatDayName(y,m,d);
           const td3 = document.createElement('td'); td3.textContent = st || '—'; td3.style.textAlign='center';
@@ -451,7 +487,7 @@
           if(st==='P') present++;
           if(st==='L') leave++;
           if(st==='C') comp++;
-          if(st==='H') hol++;
+          if(st==='H' || st==='ST' || st==='SU') hol++;
         }
         const workingDays = Math.max(0, total - hol);
         const attendancePercent = workingDays > 0 ? (present / workingDays) * 100 : 0;
@@ -501,7 +537,7 @@
           if(st==='P') present++;
           if(st==='L') leave++;
           if(st==='C') comp++;
-          if(st==='H') hol++;
+          if(st==='H' || st==='ST' || st==='SU') hol++;
         }
 
         const workingDays = Math.max(0, total - hol);
@@ -545,8 +581,9 @@
         const y = state.year, m = state.monthIndex, total = daysInMonth(y,m);
         for(let d=1; d<=total; d++){
           const dow = new Date(y,m,d).getDay();
-          // Saturday (6) or Sunday (0)
-          if(dow===0 || dow===6) state.statusMap[isoDate(y,m,d)] = 'H';
+          // Saturday (6) -> ST, Sunday (0) -> SU
+          if(dow===6) state.statusMap[isoDate(y,m,d)] = 'ST';
+          else if(dow===0) state.statusMap[isoDate(y,m,d)] = 'SU';
         }
         renderCalendar();
       }
@@ -571,7 +608,7 @@
           if(st==='P') present++;
           if(st==='L') leave++;
           if(st==='C') comp++;
-          if(st==='H') hol++;
+          if(st==='H' || st==='ST' || st==='SU') hol++;
         }
 
         const workingDays = Math.max(0, total - hol);
@@ -607,6 +644,107 @@
         const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
         const blob = new Blob([wbout], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
         return blob;
+      }
+
+      // ---------------- Export Template (server POST with client-side fallback) ----------------
+      async function exportTemplate(){
+        const payload = buildTemplatePayload();
+
+        // Server JSON flow (uses CUSTOM_TEMPLATE.xlsx if available, else default)
+        try{
+          const resp = await fetch('/api/export-template', { method: 'POST', headers: { 'Content-Type':'application/json' }, body: JSON.stringify(payload) });
+          if(resp.ok){
+            const blob = await resp.blob();
+            const cd = resp.headers.get('Content-Disposition') || '';
+            let filename = '';
+            const m = /filename="?([^";]+)"?/.exec(cd);
+            if(m && m[1]) filename = m[1];
+            if(!filename) filename = `${payload.company.replace(/\s+/g,'_')}_${payload.employeeName.replace(/\s+/g,'')}_${payload.month}${payload.year}_Timesheet.xlsx`;
+            downloadBlob(blob, filename);
+            return;
+          }
+          console.warn('Server export-template failed, falling back to client export. Status:', resp.status);
+        }catch(err){
+          console.warn('Server export-template not available, falling back to client export.', err);
+        }
+
+        // Client-side fallback: fetch template from /template and populate using SheetJS (XLSX)
+        try{
+          await clientSideExportTemplate(payload);
+        }catch(err){
+          console.error('Client-side template export failed:', err);
+          alert('Export Template failed: ' + (err && err.message));
+        }
+      }
+
+      function buildTemplatePayload(){
+        const y = state.year, m = state.monthIndex, total = daysInMonth(y,m);
+        const attendanceRows = [];
+        for(let d=1; d<=total; d++){
+          const iso = isoDate(y,m,d);
+          attendanceRows.push({ date: iso, day: formatDayName(y,m,d), status: state.statusMap[iso] || '' });
+        }
+        let present=0, leave=0, comp=0, hol=0;
+        attendanceRows.forEach(r=>{
+          if(r.status==='P') present++;
+          if(r.status==='L') leave++;
+          if(r.status==='C') comp++;
+          if(r.status==='H' || r.status==='ST' || r.status==='SU') hol++;
+        });
+        const workingDays = Math.max(0, total - hol);
+        const attendancePercent = workingDays > 0 ? (present / workingDays) * 100 : 0;
+        return {
+          company: state.company,
+          employeeName: state.name,
+          employeeId: state.empId,
+          month: monthNames[m],
+          year: y,
+          attendanceRows,
+          summary: { totalPresent: present, totalLeave: leave, totalHoliday: hol, attendancePercent: Number(attendancePercent.toFixed(1)) }
+        };
+      }
+
+      async function clientSideExportTemplate(payload){
+        if(typeof XLSX === 'undefined') throw new Error('SheetJS (XLSX) is not loaded for client-side template export.');
+        const url = '/template/TIMESHEET_NOVEMBER-SKP.xlsx';
+        const resp = await fetch(url);
+        if(!resp.ok) throw new Error('Template file not found at ' + url);
+        const ab = await resp.arrayBuffer();
+        const workbook = XLSX.read(ab, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const ws = workbook.Sheets[firstSheetName];
+        try{ ws['B2'] = { t:'s', v: payload.company }; } catch(e){}
+        try{ ws['B3'] = { t:'s', v: payload.employeeName }; } catch(e){}
+        try{ ws['B4'] = { t:'s', v: payload.employeeId }; } catch(e){}
+        try{ ws['B5'] = { t:'s', v: `${payload.month} ${payload.year}` }; } catch(e){}
+        let startRow = 10;
+        const sheetJson = XLSX.utils.sheet_to_json(ws, { header:1, defval: '' });
+        for(let r=0;r<sheetJson.length;r++){
+          const row = sheetJson[r];
+          for(let c=0;c<row.length;c++){
+            const cell = String(row[c]).toLowerCase();
+            if(cell === 'date' || cell === 'day' || cell === 'status'){
+              startRow = r + 2;
+              break;
+            }
+          }
+          if(startRow !== 10) break;
+        }
+        for(let i=0;i<payload.attendanceRows.length;i++){
+          const r = startRow + i;
+          const ar = payload.attendanceRows[i];
+          ws['A' + r] = { t:'s', v: ar.date };
+          ws['B' + r] = { t:'s', v: ar.day };
+          ws['C' + r] = { t:'s', v: ar.status };
+        }
+        try{ ws['D2'] = { t:'n', v: payload.summary.totalPresent }; } catch(e){}
+        try{ ws['D3'] = { t:'n', v: payload.summary.totalLeave }; } catch(e){}
+        try{ ws['D4'] = { t:'n', v: payload.summary.totalHoliday }; } catch(e){}
+        try{ ws['D5'] = { t:'n', v: payload.summary.attendancePercent }; } catch(e){}
+        const wbout = XLSX.write(workbook, { bookType:'xlsx', type:'array' });
+        const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const filename = `${payload.company.replace(/\s+/g,'_')}_${payload.employeeName.replace(/\s+/g,'')}_${payload.month}${payload.year}_Timesheet.xlsx`;
+        downloadBlob(blob, filename);
       }
 
       // ---------------- helper download & compose openers ----------------
@@ -781,13 +919,42 @@
       if(inputEmpId) inputEmpId.addEventListener('input', ()=>{ state.empId = inputEmpId.value || ''; renderHeading(); });
       if(btnExport) btnExport.addEventListener('click', exportExcelSafe);
       if(btnExportCSV) btnExportCSV.addEventListener('click', exportCSV);
+      if(document.getElementById('btnExportTemplate')) document.getElementById('btnExportTemplate').addEventListener('click', exportTemplate);
+      // Upload template button wiring — uploads immediately to /api/upload-template
+      if(btnUploadTemplate && inputTemplateFile){
+        btnUploadTemplate.addEventListener('click', ()=> inputTemplateFile.click());
+        inputTemplateFile.addEventListener('change', async (e)=>{
+          const f = e.target.files && e.target.files[0];
+          if(!f){ btnUploadTemplate.textContent = 'Upload Template'; return; }
+          if(!/\.xlsx$/i.test(f.name)){ alert('Please select a .xlsx file'); inputTemplateFile.value = ''; return; }
+          // Upload to backend
+          const form = new FormData();
+          form.append('template', f);
+          try{
+            const res = await fetch('/api/upload-template', { method: 'POST', body: form });
+            const data = await res.json();
+            if(data.ok){
+              alert('Template uploaded successfully!');
+              btnUploadTemplate.textContent = 'Template Ready';
+            } else {
+              alert('Upload failed: ' + (data.error || 'Unknown error'));
+              btnUploadTemplate.textContent = 'Upload Template';
+            }
+          }catch(err){
+            alert('Upload failed: ' + (err && err.message));
+            btnUploadTemplate.textContent = 'Upload Template';
+          }
+          inputTemplateFile.value = '';
+        });
+      }
       if(btnMarkWeekends) btnMarkWeekends.addEventListener('click', ()=>{ markWeekendsAsHoliday(); });
       if(btnClearMonth) btnClearMonth.addEventListener('click', ()=>{ if(confirm('Clear statuses for this month?')) clearMonth(); });
       if(btnSendTop) btnSendTop.addEventListener('click', openSendDialog);
 
       // initial render
       renderHeading();
-      renderCalendar();
+      // Apply weekend ST/SU labeling on initial load so weekends are reflected in UI, reports and exports
+      markWeekendsAsHoliday();
     })();
   </script>
 </body>

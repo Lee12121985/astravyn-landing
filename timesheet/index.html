@@ -1,220 +1,393 @@
 <!doctype html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Attendance Details — Interactive (Updated)</title>
-
-  <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
-
+  <title>Attendance Details — Timesheet</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-DV0M3HKV6B"></script>
-  <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag(){ dataLayer.push(arguments); }
-    gtag('js', new Date());
-    gtag('config', 'G-DV0M3HKV6B');
-  </script>
-
+  <!-- SheetJS (needed for Excel export) -->
   <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
 
   <style>
-    /* ------------------------------------------------------------------- */
-    /* ALL CSS STYLES ARE KEPT EXACTLY THE SAME FOR FUNCTIONAL RELIABILITY */
-    /* ------------------------------------------------------------------- */
-    :root{
-      --bg:#f5f7fa; --card:#ffffff; --muted:#6b7280; --accent:#0f8a8a;
-      --green:#34c759; --blue:#3b82f6; --orange:#f59e0b; --gray:#9ca3af;
-      --radius:12px;
-      font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    :root {
+      --bg: #f5f7fa;
+      --card: #fff;
+      --muted: #6b7280;
+      --neon-cyan: #06b6d4;
+      --neon-green: #10B981;
+      --neon-orange: #F59E0B;
+      --radius: 12px;
+      font-family: "Inter", system-ui, Roboto, sans-serif;
     }
-    *{box-sizing:border-box}
-    html,body{height:100%;margin:0;background:var(--bg);color:#111827}
-    .container{max-width:1180px;margin:26px auto;padding:18px}
-    .card{background:var(--card);border-radius:var(--radius);box-shadow:0 8px 24px rgba(11,15,25,0.05);padding:18px}
-    .layout{display:flex;gap:18px;align-items:flex-start}
-    .left{flex:1}
-    .right{width:360px}
 
-    /* Calendar */
-    .calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:18px;padding:10px 6px}
-    .day{position:relative;min-height:82px;border-radius:10px;border:1px solid #eef2f6;display:flex;justify-content:center;align-items:center;background:#fff;
-      transition: transform .14s ease, box-shadow .14s ease; will-change: transform, box-shadow; cursor:pointer;}
-    .day:hover{ transform: translateY(-6px) scale(1.01); box-shadow: 0 12px 30px rgba(11,15,25,0.08); z-index:2; }
-    .day:focus{ outline: none; box-shadow: 0 12px 30px rgba(11,15,25,0.10); transform: translateY(-6px) scale(1.01); }
-    .day.hidden{ visibility:hidden; pointer-events:none; background:transparent; border:none; box-shadow:none; transform:none; }
-    .num{position:absolute;top:8px;left:10px;font-weight:600;font-size:13px;color:#374151}
-    .pill{padding:8px 12px;border-radius:50%;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;min-width:36px;min-height:36px}
-    .pill.P{background:var(--green);color:#02240f}
-    .pill.C{background:var(--blue);color:#fff}
-    .pill.L{background:var(--orange);color:#2f1600}
-    .pill.H{background:var(--gray);color:#fff}
+    * {
+      box-sizing: border-box
+    }
 
-    .weekday-row{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-bottom:8px}
-    .weekday{font-size:13px;color:var(--muted);text-align:center;font-weight:600}
-    table{width:100%;border-collapse:collapse;margin-top:10px}
-    th,td{border:1px solid #eff3f6;padding:8px;text-align:center;font-size:13px}
-    th{background:#f9fafb;font-weight:600}
-    .legend{display:flex;gap:18px;align-items:center;margin-top:18px}
-    .small{font-size:13px;color:var(--muted)}
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: #111827;
+      font-family: Inter, system-ui, Roboto, sans-serif
+    }
 
-    /* Buttons */
-    .btn-3d {
+    .container {
+      max-width: 1180px;
+      margin: 28px auto;
+      padding: 18px
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: 0 12px 36px rgba(11, 15, 25, .06);
+      padding: 18px
+    }
+
+    .layout {
+      display: flex;
+      gap: 18px;
+      align-items: flex-start
+    }
+
+    .left {
+      flex: 1
+    }
+
+    .right {
+      width: 360px
+    }
+
+    .calendar {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 14px;
+      padding: 8px
+    }
+
+    .day {
+      position: relative;
+      min-height: 86px;
+      border-radius: 10px;
+      border: 1px solid #eef2f6;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #fff;
+      cursor: pointer
+    }
+
+    .day.hidden {
+      visibility: hidden;
+      pointer-events: none;
+      background: transparent;
+      border: none
+    }
+
+    .num {
+      position: absolute;
+      top: 8px;
+      left: 10px;
+      font-weight: 600;
+      font-size: 13px;
+      color: #374151
+    }
+
+    .pill {
+      padding: 8px 12px;
+      border-radius: 28px;
+      font-weight: 700;
+      font-size: 13px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
+      min-width: 36px;
+      min-height: 36px
+    }
+
+    .pill.P {
+      background: var(--neon-green);
+      color: #042812
+    }
+
+    .pill.C {
+      background: #3b82f6;
+      color: #fff
+    }
+
+    .pill.L {
+      background: var(--neon-orange);
+      color: #2f1600
+    }
+
+    .pill.H,
+    .pill.ST,
+    .pill.SU {
+      background: #9ca3af;
+      color: #fff
+    }
+
+    .weekday-row {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 8px;
+      margin-bottom: 12px
+    }
+
+    .weekday {
+      font-size: 13px;
+      color: var(--muted);
+      text-align: center;
+      font-weight: 700
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      border-radius: 8px;
+      overflow: hidden
+    }
+
+    th,
+    td {
+      border: 1px solid #eff3f6;
+      padding: 8px;
+      text-align: center;
+      font-size: 13px;
+      background: #fff
+    }
+
+    th {
+      background: #fbfbfc;
+      font-weight: 700
+    }
+
+    .legend {
+      display: flex;
+      gap: 18px;
+      align-items: center;
+      margin-top: 18px
+    }
+
+    .small {
+      font-size: 13px;
+      color: var(--muted)
+    }
+
+    .top-toolbar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: flex-end
+    }
+
+    .btn-3d {
+      display: inline-flex;
+      align-items: center;
       gap: 8px;
       padding: 10px 18px;
       border-radius: 10px;
       border: none;
       cursor: pointer;
-      font-weight: 600;
-      font-size: 14px;
-      transition: all 0.2s ease-in-out;
-      transform: translateY(0);
+      font-weight: 700;
+      font-size: 13px
     }
+
     .btn-accent {
-      background: linear-gradient(180deg, #0fa0a0, #0d8a8a);
+      background: linear-gradient(180deg, #06b6d4, #0596ab);
       color: #fff;
-      box-shadow: 0 3px 6px rgba(13, 138, 138, 0.2);
+      box-shadow: 0 6px 18px rgba(6, 182, 212, .14)
     }
+
     .btn-flat {
       background: #fff;
       color: #0f1724;
-      border: 1px solid #d1d5db;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.03);
+      border: 1px solid #e6edf2;
+      padding: 10px 14px
     }
 
     .btn-control {
       display: inline-flex;
       align-items: center;
-      justify-content: center;
       gap: 6px;
       padding: 8px 12px;
       border-radius: 8px;
       border: none;
-      font-weight: 600;
+      font-weight: 700;
       font-size: 13px;
+      cursor: pointer
+    }
+
+    .btn-weekends {
+      background: linear-gradient(180deg, #10b981, #059669);
+      color: #fff
+    }
+
+    .btn-clear {
+      background: linear-gradient(180deg, #fbbf24, #f59e0b);
+      color: #fff
+    }
+
+    .template-select {
+      padding: .5rem .9rem;
+      border-radius: 9999px;
+      border: 1px solid var(--neon-cyan);
+      background: rgba(5, 11, 20, .03);
+      color: var(--neon-cyan);
+      font-size: 13px
+    }
+
+    .btn-upload {
+      background: transparent;
+      border: 1px dashed var(--neon-cyan);
+      color: var(--neon-cyan);
+      padding: .55rem 1rem;
+      border-radius: 9999px;
       cursor: pointer;
-      transition: all 0.18s ease-in-out;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.06);
+      font-size: 13px;
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+      font-weight: 700;
+      text-transform: uppercase
     }
-    .btn-weekends { background: linear-gradient(180deg, #10b981, #059669); color:#fff; }
-    .btn-clear { background: linear-gradient(180deg, #fbbf24, #f59e0b); color:#fff; }
+      /* Toggle active state for weekend color button */
+      .btn-control.active {
+        box-shadow: 0 6px 18px rgba(6, 182, 212, 0.12);
+        border: 1px solid rgba(6, 182, 212, 0.12);
+      }
 
-    /* ==== BUTTON HOVER EFFECTS ==== */
-
-    /* Export Excel (teal gradient) */
-    .btn-3d.btn-accent:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 14px rgba(13, 138, 138, 0.35);
-      background: linear-gradient(180deg, #13b5b5, #0e9999);
-    }
-
-    /* Export CSV (white flat) */
-    .btn-3d.btn-flat:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 14px rgba(0,0,0,0.1);
-      background: linear-gradient(180deg, #ffffff, #f3f4f6);
+    .btn-upload input {
+      display: none
     }
 
-    /* Mark Weekends H (green glossy) */
-    .btn-control.btn-weekends:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 14px rgba(16,185,129,0.35);
-      background: linear-gradient(180deg, #12d28c, #059669);
+    .status-cell {
+      font-weight: 700;
+      border-left: 4px solid transparent
     }
 
-    /* Clear Month (yellow glossy) */
-    .btn-control.btn-clear:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 14px rgba(245,158,11,0.35);
-      background: linear-gradient(180deg, #facc15, #eab308);
+    .status-cell.P {
+      background: linear-gradient(180deg, rgba(52, 199, 89, 0.18), rgba(52, 199, 89, 0.06));
+      color: #024d1a;
+      border-left-color: #28a745
     }
 
-    /* Pressed effect */
-    .btn-3d:active,
-    .btn-control:active {
-      transform: translateY(1px);
-      box-shadow: 0 2px 6px rgba(0,0,0,0.15) inset;
+    .status-cell.C {
+      background: linear-gradient(180deg, rgba(59, 130, 246, 0.18), rgba(59, 130, 246, 0.06));
+      color: #06326f;
+      border-left-color: #3b82f6
     }
 
-    /* Status column color mapping */
-    .status-cell{ font-weight:700; border-left:4px solid transparent; transition: background 0.2s ease; }
-    .status-cell.P{ background: linear-gradient(180deg, rgba(52,199,89,0.22), rgba(52,199,89,0.08)); color:#024d1a; border-left-color:#28a745; }
-    .status-cell.C{ background: linear-gradient(180deg, rgba(59,130,246,0.22), rgba(59,130,246,0.08)); color:#06326f; border-left-color:#3b82f6; }
-    .status-cell.L{ background: linear-gradient(180deg, rgba(245,158,11,0.22), rgba(245,158,11,0.08)); color:#5c3a00; border-left-color:#f59e0b; }
-    .status-cell.H{ background: linear-gradient(180deg, rgba(156,163,175,0.22), rgba(156,163,175,0.08)); color:#1e1e1e; border-left-color:#9ca3af; }
-
-    /* responsive */
-    @media (max-width: 900px){
-      .layout{flex-direction:column}
-      .right{width:100%}
+    .status-cell.L {
+      background: linear-gradient(180deg, rgba(245, 158, 11, 0.18), rgba(245, 158, 11, 0.06));
+      color: #5c3a00;
+      border-left-color: #f59e0b
     }
 
-    .row{display:flex;gap:8px;align-items:center}
-    .controls-inline{display:flex;gap:8px;align-items:center}
-    /* sticky summary panel on tall screens */
-    .right .card{position:sticky;top:28px}
+    .status-cell.H,
+    .status-cell.ST,
+    .status-cell.SU {
+      background: linear-gradient(180deg, rgba(156, 163, 175, 0.18), rgba(156, 163, 175, 0.06));
+      color: #1e1e1e;
+      border-left-color: #9ca3af
+    }
 
-    /* small stack to put Send below export buttons without changing theme */
-    .top-actions { display:flex; gap:12px; align-items:flex-start; }
-    .top-actions-col { display:flex; flex-direction:column; gap:8px; align-items:flex-end; }
+    .month-nav {
+      display: flex;
+      align-items: center;
+      gap: 8px
+    }
+
+    .icon-btn {
+      width: 36px;
+      height: 36px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      border: 1px solid #e6edf2;
+      background: #fff;
+      cursor: pointer
+    }
+
+    @media (max-width:900px) {
+      .layout {
+        flex-direction: column
+      }
+
+      .right {
+        width: 100%
+      }
+    }
+
+    /* make the calendar scroll nicely when it grows */
+    #calendar {
+      min-height: 260px
+    }
   </style>
 </head>
+
 <body>
   <div class="container">
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <h2 style="margin:0;font-size:20px">Attendance Details — <span id="headingMonth">October 2025</span></h2>
-        <!-- top-actions wraps export buttons and the send stack -->
-        <div class="top-actions">
-          <div style="display:flex;gap:8px;align-items:center">
-            <button id="btnExport" class="btn-3d btn-accent" title="Export as Excel (.xlsx)">Export Excel</button>
-            <button id="btnExportCSV" class="btn-3d btn-flat" title="Export as CSV (.csv)">Export CSV</button>
-          </div>
-
-          <!-- column stack: Send button placed below (visually) in a column so it sits under exports -->
-          <div class="top-actions-col">
-            <!-- You said place Send below exports — keeping visual grouping -->
-            <button id="btnSendTop" class="btn-3d btn-accent" title="Open send dialog">Send</button>
-          </div>
+        <div class="top-toolbar">
+          <button id="btnExportSKP" class="btn-3d btn-accent" title="Export SKP Report">Export SKP Report</button>
+          <button id="btnExport" class="btn-3d" title="Export as Excel (.xlsx)">Export Excel</button>
+          <button id="btnExportCSV" class="btn-3d btn-flat" title="Export as CSV (.csv)">Export CSV</button>
+          <button id="btnSendTop" class="btn-3d btn-accent" title="Open send dialog">Send</button>
         </div>
       </div>
 
       <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
         <label style="min-width:220px">Company Name
-          <input id="inputCompany" value="NovaEdge Technologies" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #d1d5db">
+          <input id="inputCompany" value="NovaEdge Technologies"
+            style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #d1d5db">
         </label>
-
         <label style="min-width:220px">Employee Name
-          <input id="inputName" value="Aarav Kiran" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #d1d5db">
+          <input id="inputName" value="Aarav Kiran"
+            style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #d1d5db">
         </label>
-
         <label style="min-width:160px">Employee ID
-          <input id="inputEmpId" value="NE-2047" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #d1d5db">
+          <input id="inputEmpId" value="NE-2047"
+            style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #d1d5db">
         </label>
 
-        <div class="controls-inline" style="margin-right:auto;align-items:center;justify-content:flex-start;gap:12px;flex:1">
-          <label style="margin:0;font-weight:500">Month
-            <select id="selectMonth" style="margin-left:6px;padding:8px;border-radius:8px"></select>
-          </label>
-          <label style="margin:0;font-weight:500">Year
-            <select id="selectYear" style="margin-left:6px;padding:8px;border-radius:8px"></select>
-          </label>
+        <div class="controls-inline"
+          style="margin-right:auto;align-items:center;justify-content:flex-start;gap:12px;flex:1">
+          <div class="month-nav" style="align-items:center">
+            <button id="btnPrevMonth" class="icon-btn" title="Previous month" aria-label="Previous month">◀</button>
+            <label style="margin:0;font-weight:600">Month
+              <select id="selectMonth" style="margin-left:6px;padding:8px;border-radius:8px"></select>
+            </label>
+            <label style="margin:0;font-weight:600">Year
+              <select id="selectYear" style="margin-left:6px;padding:8px;border-radius:8px"></select>
+            </label>
+            <button id="btnNextMonth" class="icon-btn" title="Next month" aria-label="Next month">▶</button>
+          </div>
 
           <button id="btnMarkWeekends" class="btn-control btn-weekends">Mark Weekends H</button>
+          <button id="btnToggleWeekendColor" class="btn-control" title="Toggle weekend background">Weekend
+            Color</button>
           <button id="btnClearMonth" class="btn-control btn-clear">Clear Month</button>
         </div>
       </div>
 
       <div class="layout">
         <div class="left card" style="padding:18px">
-          <div class="small" style="margin-bottom:8px">Click a date to cycle status: <strong>Empty → P → C → L → H →</strong></div>
+          <div class="small" style="margin-bottom:8px">Click a date to cycle status: <strong>Empty → P → C → L → H
+              →</strong></div>
           <div class="weekday-row" aria-hidden="true">
-            <div class="weekday">Mon</div><div class="weekday">Tue</div><div class="weekday">Wed</div>
-            <div class="weekday">Thu</div><div class="weekday">Fri</div><div class="weekday">Sat</div><div class="weekday">Sun</div>
+            <div class="weekday">Mon</div>
+            <div class="weekday">Tue</div>
+            <div class="weekday">Wed</div>
+            <div class="weekday">Thu</div>
+            <div class="weekday">Fri</div>
+            <div class="weekday">Sat</div>
+            <div class="weekday">Sun</div>
           </div>
 
           <div style="max-height:560px;overflow:auto;padding:6px">
@@ -222,33 +395,75 @@
           </div>
 
           <div class="legend">
-            <div class="item"><span class="pill P">P</span><span class="small" style="margin-left:6px">Present</span></div>
-            <div class="item"><span class="pill C">C</span><span class="small" style="margin-left:6px">Comp-off</span></div>
-            <div class="item"><span class="pill L">L</span><span class="small" style="margin-left:6px">Leave</span></div>
-            <div class="item"><span class="pill H">H</span><span class="small" style="margin-left:6px">Holiday</span></div>
+            <div class="item"><span class="pill P">P</span><span class="small" style="margin-left:8px">Present</span>
+            </div>
+            <div class="item"><span class="pill C">C</span><span class="small" style="margin-left:8px">Comp-off</span>
+            </div>
+            <div class="item"><span class="pill L">L</span><span class="small" style="margin-left:8px">Leave</span>
+            </div>
+            <div class="item"><span class="pill H">H</span><span class="small" style="margin-left:8px">Holiday</span>
+            </div>
           </div>
         </div>
 
         <div class="right">
           <div class="card">
             <div style="font-weight:700;margin-bottom:8px">Summary</div>
-            <div style="font-size:14px;line-height:1.5">
-              <div style="display:flex;justify-content:space-between"><div>Company</div><div id="summaryCompany">NovaEdge Technologies</div></div>
-              <div style="display:flex;justify-content:space-between"><div>Employee</div><div id="summaryName">Aarav Kiran</div></div>
-              <div style="display:flex;justify-content:space-between"><div>Employee ID</div><div id="summaryEmpId">NE-2047</div></div>
-              <div style="display:flex;justify-content:space-between"><div>Month</div><div id="summaryMonth">October 2025</div></div>
-              <div style="display:flex;justify-content:space-between"><div>Total Present</div><div id="summaryPresent">0</div></div>
-              <div style="display:flex;justify-content:space-between"><div>Total Leave</div><div id="summaryLeave">0</div></div>
-              <div style="display:flex;justify-content:space-between"><div>Total Comp-off</div><div id="summaryComp">0</div></div>
-              <div style="display:flex;justify-content:space-between"><div>Total Holiday</div><div id="summaryHoliday">0</div></div>
-              <div style="display:flex;justify-content:space-between"><div>Attendance %</div><div id="summaryPercent">0%</div></div>
-              <div style="display:flex;justify-content:space-between"><div>Comp-off of Holiday</div><div id="summaryCompOfHoliday">0 / 0 (0.0%)</div></div>
+            <div style="font-size:14px;line-height:1.6">
+              <div style="display:flex;justify-content:space-between">
+                <div>Company</div>
+                <div id="summaryCompany">NovaEdge Technologies</div>
+              </div>
+              <div style="display:flex;justify-content:space-between">
+                <div>Employee</div>
+                <div id="summaryName">Aarav Kiran</div>
+              </div>
+              <div style="display:flex;justify-content:space-between">
+                <div>Employee ID</div>
+                <div id="summaryEmpId">NE-2047</div>
+              </div>
+              <div style="display:flex;justify-content:space-between">
+                <div>Month</div>
+                <div id="summaryMonth">October 2025</div>
+              </div>
+              <div style="display:flex;justify-content:space-between">
+                <div>Total Present</div>
+                <div id="summaryPresent">0</div>
+              </div>
+              <div style="display:flex;justify-content:space-between">
+                <div>Total Leave</div>
+                <div id="summaryLeave">0</div>
+              </div>
+              <div style="display:flex;justify-content:space-between">
+                <div>Total Comp-off</div>
+                <div id="summaryComp">0</div>
+              </div>
+              <div style="display:flex;justify-content:space-between">
+                <div>Total Holiday</div>
+                <div id="summaryHoliday">0</div>
+              </div>
+              <div style="display:flex;justify-content:space-between">
+                <div>Attendance %</div>
+                <div id="summaryPercent">0%</div>
+              </div>
+              <div style="display:flex;justify-content:space-between">
+                <div>Comp-off of Holiday</div>
+                <div id="summaryCompOfHoliday">0 / 0 (0.0%)</div>
+              </div>
             </div>
 
             <div style="margin-top:12px">
               <div style="font-weight:600;margin-bottom:8px">Report Preview</div>
               <div style="max-height:360px;overflow:auto">
-                <table id="reportTable"><thead><tr><th>Date</th><th>Day</th><th>Status</th></tr></thead><tbody id="reportBody"></tbody></table>
+                <table id="reportTable">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="reportBody"></tbody>
+                </table>
               </div>
             </div>
 
@@ -258,537 +473,308 @@
     </div>
   </div>
 
-  <!-- SEND MODAL (injected by JS when Send clicked) -->
-  <script type="module">
-    // 1. FIREBASE V9 MODULAR IMPORTS
-    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js';
-    import { getAnalytics } from 'https://www.gstatic.com/firebasejs/10.10.0/firebase-analytics.js';
+  <script>
+    /* ---------- CLIENT APP JS (self-contained) ---------- */
+    (function () {
+      const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+      function daysInMonth(y, m) { return new Date(y, m + 1, 0).getDate(); }
+      function isoDate(y, m, d) { return `${String(y).padStart(4, '0')}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`; }
+      function formatMDY(y, m, d) { return `${m + 1}/${d}/${y}`; }
+      function formatDayName(y, m, d) { return new Date(y, m, d).toLocaleDateString(undefined, { weekday: 'short' }); }
 
-    // Firebase configuration (API key is public for Analytics, no change needed)
-    const firebaseConfig = {
-      apiKey: "AIzaSyDPljICCsPxIH9TtNYJ9VyIg6YvYwPis3E",
-      authDomain: "astravyn-landing.firebaseapp.com",
-      projectId: "astravyn-landing",
-      storageBucket: "astravyn-landing.firebasestorage.app",
-      messagingSenderId: "90590064470",
-      appId: "1:90590064470:web:740aa9cd5213ac9f50f0f7",
-      measurementId: "G-DV0M3HKV6B"
-    };
+      const state = { year: new Date().getFullYear(), monthIndex: new Date().getMonth(), company: 'NovaEdge Technologies', name: 'Aarav Kiran', empId: 'NE-2047', statusMap: {}, showWeekendColors: false };
 
-    // Initialize Firebase (Modern Modular Style)
-    const firebaseApp = initializeApp(firebaseConfig);
-    // Note: getAnalytics() is called to initialize the service,
-    // but actual event logging requires explicit calls (not done in this app)
-    const analytics = getAnalytics(firebaseApp);
+      const id = (s) => document.getElementById(s);
+      const selectMonth = id('selectMonth'), selectYear = id('selectYear'), headingMonth = id('headingMonth'), calendarEl = id('calendar');
+      const inputName = id('inputName'), inputCompany = id('inputCompany'), inputEmpId = id('inputEmpId');
+      const summaryCompany = id('summaryCompany'), summaryName = id('summaryName'), summaryEmpId = id('summaryEmpId'), summaryMonth = id('summaryMonth');
+      const summaryPresent = id('summaryPresent'), summaryLeave = id('summaryLeave'), summaryComp = id('summaryComp'), summaryHoliday = id('summaryHoliday');
+      const summaryPercent = id('summaryPercent'), summaryCompOfHoliday = id('summaryCompOfHoliday'), reportBody = id('reportBody');
+      const btnExportSKP = id('btnExportSKP'), btnExport = id('btnExport'), btnExportCSV = id('btnExportCSV'), btnMarkWeekends = id('btnMarkWeekends'), btnClearMonth = id('btnClearMonth'), btnSendTop = id('btnSendTop');
+      const btnPrevMonth = id('btnPrevMonth'), btnNextMonth = id('btnNextMonth'), btnToggleWeekendColor = id('btnToggleWeekendColor');
 
-    // 2. MAIN APPLICATION LOGIC (Encapsulated in a function)
-    (function(){
-      const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-      function daysInMonth(y,m){ return new Date(y,m+1,0).getDate(); }
-      function isoDate(y,m,d){ return `${String(y).padStart(4,'0')}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
-      function formatDayName(y,m,d){ return new Date(y,m,d).toLocaleDateString(undefined,{weekday:'short'}); }
-      function formatMDY(y,m,d){ return `${m+1}/${d}/${y}`; }
+      if (selectMonth) { selectMonth.innerHTML = monthNames.map((m, i) => `<option value="${i}">${m}</option>`).join(''); selectMonth.value = state.monthIndex; }
+      if (selectYear) { const cur = new Date().getFullYear(); selectYear.innerHTML = Array.from({ length: 12 }, (_, i) => cur - 6 + i).map(y => `<option value="${y}">${y}</option>`).join(''); selectYear.value = state.year; }
 
-      const state = {
-        year: 2025,
-        monthIndex: 9, // October 2025 default
-        company: 'NovaEdge Technologies',
-        name: 'Aarav Kiran',
-        empId: 'NE-2047',
-        statusMap: {} // iso -> 'P'|'C'|'L'|'H'
-      };
-
-      // DOM refs
-      const selectMonth = document.getElementById('selectMonth');
-      const selectYear = document.getElementById('selectYear');
-      const headingMonth = document.getElementById('headingMonth');
-      const calendarEl = document.getElementById('calendar');
-      const inputName = document.getElementById('inputName');
-      const inputCompany = document.getElementById('inputCompany');
-      const inputEmpId = document.getElementById('inputEmpId');
-      const summaryCompany = document.getElementById('summaryCompany');
-      const summaryName = document.getElementById('summaryName');
-      const summaryEmpId = document.getElementById('summaryEmpId');
-      const summaryMonth = document.getElementById('summaryMonth');
-      const summaryPresent = document.getElementById('summaryPresent');
-      const summaryLeave = document.getElementById('summaryLeave');
-      const summaryComp = document.getElementById('summaryComp');
-      const summaryHoliday = document.getElementById('summaryHoliday');
-      const summaryPercent = document.getElementById('summaryPercent');
-      const summaryCompOfHoliday = document.getElementById('summaryCompOfHoliday');
-      const reportBody = document.getElementById('reportBody');
-      const btnExport = document.getElementById('btnExport');
-      const btnExportCSV = document.getElementById('btnExportCSV');
-      const btnMarkWeekends = document.getElementById('btnMarkWeekends');
-      const btnClearMonth = document.getElementById('btnClearMonth');
-      const btnSendTop = document.getElementById('btnSendTop');
-
-      // Initialize month/year selectors if present
-      if(selectMonth){
-        selectMonth.innerHTML = monthNames.map((m,i)=>`<option value="${i}">${m}</option>`).join('');
-        selectMonth.value = state.monthIndex;
-      }
-      if(selectYear){
-        const curYear = new Date().getFullYear();
-        selectYear.innerHTML = Array.from({length:12},(_,i)=>curYear-6 + i).map(y=>`<option value="${y}">${y}</option>`).join('');
-        selectYear.value = state.year;
-      }
-
-      function renderHeading(){
-        if(headingMonth) headingMonth.textContent = `${monthNames[state.monthIndex]} ${state.year}`;
-        if(summaryCompany) summaryCompany.textContent = state.company;
-        if(summaryName) summaryName.textContent = state.name;
-        if(summaryEmpId) summaryEmpId.textContent = state.empId;
-        if(summaryMonth) summaryMonth.textContent = `${monthNames[state.monthIndex]} ${state.year}`;
-      }
+      function renderHeading() { headingMonth.textContent = `${monthNames[state.monthIndex]} ${state.year}`; summaryCompany.textContent = state.company; summaryName.textContent = state.name; summaryEmpId.textContent = state.empId; summaryMonth.textContent = `${monthNames[state.monthIndex]} ${state.year}`; }
 
       const CYCLE = ['', 'P', 'C', 'L', 'H'];
+      function updatePill(w, s) { w.innerHTML = ''; if (!s) return; const sp = document.createElement('span'); sp.className = 'pill ' + s; sp.textContent = s; w.appendChild(sp); }
 
-      function createDayCell(y,m,d){
-        const iso = isoDate(y,m,d);
-        const cell = document.createElement('div');
-        cell.className = 'day';
-        // Add ARIA attributes for keyboard interaction
-        cell.tabIndex = 0; 
-        cell.setAttribute('role', 'gridcell'); 
-        cell.setAttribute('aria-label', `${monthNames[m]} ${d}, ${y}`); 
+      function createDayCell(y, m, d) {
+        const iso = isoDate(y, m, d);
+        const cell = document.createElement('div'); cell.className = 'day'; cell.tabIndex = 0; cell.setAttribute('role', 'gridcell'); cell.dataset.date = iso;
+        cell.setAttribute('aria-label', `${monthNames[m]} ${d}, ${y}`);
+        const dow = new Date(y, m, d).getDay();
+        if (dow === 6) cell.classList.add('saturday'); else if (dow === 0) cell.classList.add('sunday'); else cell.classList.add('workday');
+        if (state.showWeekendColors) { if (dow === 6) cell.style.background = 'linear-gradient(180deg, rgba(16,185,129,0.06), #fff)'; if (dow === 0) cell.style.background = 'linear-gradient(180deg, rgba(249,115,22,0.05), #fff)'; }
+        const num = document.createElement('div'); num.className = 'num'; num.textContent = d; cell.appendChild(num);
+        const pillWrap = document.createElement('div'); pillWrap.className = 'pillWrap'; updatePill(pillWrap, state.statusMap[iso] || ''); cell.appendChild(pillWrap);
 
-        cell.dataset.date = iso;
-
-        const dow = new Date(y,m,d).getDay();
-        if(dow===6) cell.classList.add('saturday');
-        else if(dow===0) cell.classList.add('sunday');
-        else cell.classList.add('workday');
-
-        const num = document.createElement('div'); num.className='num'; num.textContent = d; cell.appendChild(num);
-
-        const pillWrap = document.createElement('div'); pillWrap.className='pillWrap';
-        updatePill(pillWrap, state.statusMap[iso] || '');
-        cell.appendChild(pillWrap);
-
-        cell.addEventListener('click', ()=>{ 
-          const cur = state.statusMap[iso] || '';
-          let idx = CYCLE.indexOf(cur); if(idx===-1) idx=0;
-          idx = (idx + 1) % CYCLE.length;
-          const next = CYCLE[idx];
-          if(next === '') delete state.statusMap[iso]; else state.statusMap[iso] = next;
-          updatePill(pillWrap, state.statusMap[iso] || '');
-          // Update ARIA status
-          cell.setAttribute('aria-current-status', next || 'Empty');
-          updateSummaryAndReport();
+        cell.addEventListener('click', () => {
+          const cur = state.statusMap[iso] || ''; const normCur = (cur === 'ST' || cur === 'SU') ? 'H' : cur;
+          let idx = CYCLE.indexOf(normCur); if (idx === -1) idx = 0; idx = (idx + 1) % CYCLE.length; let next = CYCLE[idx];
+          if (next === 'H') { if (dow === 6) next = 'ST'; else if (dow === 0) next = 'SU'; }
+          if (next === '') delete state.statusMap[iso]; else state.statusMap[iso] = next;
+          updatePill(pillWrap, state.statusMap[iso] || ''); cell.setAttribute('aria-current-status', next || 'Empty'); updateSummaryAndReport();
         });
-
-        // Retain original keydown to allow cycling status via Enter/Space
-        cell.addEventListener('keydown', (e)=>{ 
-          if(e.key==='Enter' || e.key===' '){ 
-            e.preventDefault(); 
-            cell.click(); 
-          } 
-          // FUTURE ADDITION: Arrow key navigation logic could be added here
-        });
-
+        cell.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cell.click(); } });
         return cell;
       }
 
-      function updatePill(wrapper, status){
-        wrapper.innerHTML = '';
-        if(!status) return;
-        const sp = document.createElement('span');
-        sp.className = 'pill ' + status;
-        sp.textContent = status;
-        wrapper.appendChild(sp);
-      }
-
-      function renderCalendar(){
-        calendarEl.innerHTML = '';
-        const y = state.year, m = state.monthIndex;
-        const total = daysInMonth(y,m);
-        const firstDow = new Date(y,m,1).getDay();
-        const offset = (firstDow + 6) % 7; // Monday-first
-        for(let i=0;i<offset;i++){ const blank = document.createElement('div'); blank.className='day hidden'; calendarEl.appendChild(blank); }
-        for(let d=1; d<=total; d++) calendarEl.appendChild(createDayCell(y,m,d));
+      function renderCalendar() {
+        calendarEl.innerHTML = ''; const y = state.year, m = state.monthIndex; const total = daysInMonth(y, m); const firstDow = new Date(y, m, 1).getDay(); const offset = (firstDow + 6) % 7;
+        for (let i = 0; i < offset; i++) { const blank = document.createElement('div'); blank.className = 'day hidden'; calendarEl.appendChild(blank); }
+        for (let d = 1; d <= total; d++) calendarEl.appendChild(createDayCell(y, m, d));
         updateSummaryAndReport();
       }
 
-      function updateSummaryAndReport(){
-        const y = state.year, m = state.monthIndex, total = daysInMonth(y,m);
-        let present=0, leave=0, comp=0, hol=0;
-        reportBody.innerHTML = '';
-        for(let d=1; d<=total; d++){
-          const iso = isoDate(y,m,d);
-          const st = state.statusMap[iso] || '';
-          if(st==='P') present++;
-          if(st==='L') leave++;
-          if(st==='C') comp++;
-          if(st==='H') hol++;
+      function updateSummaryAndReport() {
+        const y = state.year, m = state.monthIndex, total = daysInMonth(y, m); let present = 0, leave = 0, comp = 0, hol = 0; reportBody.innerHTML = '';
+        for (let d = 1; d <= total; d++) {
+          const iso = isoDate(y, m, d); const st = state.statusMap[iso] || ''; if (st === 'P') present++; if (st === 'L') leave++; if (st === 'C') comp++; if (st === 'H' || st === 'ST' || st === 'SU') hol++;
           const tr = document.createElement('tr');
-          const td1 = document.createElement('td'); td1.textContent = formatMDY(y,m,d);
-          const td2 = document.createElement('td'); td2.textContent = formatDayName(y,m,d);
-          const td3 = document.createElement('td'); td3.textContent = st || '—'; td3.style.textAlign='center';
-          td3.className = 'status-cell' + (st ? (' ' + st) : '');
-          tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
-          reportBody.appendChild(tr);
+          const td1 = document.createElement('td'); td1.textContent = formatMDY(y, m, d);
+          // Removed Day Column
+          const td2 = document.createElement('td');
+          td2.textContent = st || '—'; td2.style.textAlign = 'center'; td2.className = 'status-cell' + (st ? (' ' + st) : '');
+          tr.appendChild(td1); tr.appendChild(td2); reportBody.appendChild(tr);
         }
-        if(summaryPresent) summaryPresent.textContent = present;
-        if(summaryLeave) summaryLeave.textContent = leave;
-        if(summaryComp) summaryComp.textContent = comp;
-        if(summaryHoliday) summaryHoliday.textContent = hol;
-
-        const workingDays = Math.max(0, total - hol);
-        const attendancePercent = workingDays > 0 ? (present / workingDays) * 100 : 0;
-        const compOffPercent = hol > 0 ? (comp / hol) * 100 : 0;
-
-        if(summaryPercent) summaryPercent.textContent = `${attendancePercent.toFixed(1)}%`;
-        if(summaryCompOfHoliday) summaryCompOfHoliday.textContent = `${comp} / ${hol} (${compOffPercent.toFixed(1)}%)`;
+        summaryPresent.textContent = present; summaryLeave.textContent = leave; summaryComp.textContent = comp; summaryHoliday.textContent = hol;
+        const workingDays = Math.max(0, total - hol); const attendancePercent = workingDays > 0 ? (present / workingDays) * 100 : 0; const compOffPercent = hol > 0 ? (comp / hol) * 100 : 0;
+        summaryPercent.textContent = `${attendancePercent.toFixed(1)}%`; summaryCompOfHoliday.textContent = `${comp} / ${hol} (${compOffPercent.toFixed(1)}%)`;
       }
 
-      /* Export CSV (BOM for Excel compatibility) */
-      function exportCSV(){
-        const y = state.year, m = state.monthIndex, total = daysInMonth(y,m);
-        let present=0, leave=0, comp=0, hol=0;
-        for(let d=1; d<=total; d++){
-          const st = state.statusMap[isoDate(y,m,d)] || '';
-          if(st==='P') present++;
-          if(st==='L') leave++;
-          if(st==='C') comp++;
-          if(st==='H') hol++;
+      function exportCSV() {
+        const y = state.year, m = state.monthIndex, total = daysInMonth(y, m); const rows = []; rows.push([`Company Name: ${state.company}`]); rows.push([`Employee Name: ${state.name}`]); rows.push([`Employee ID: ${state.empId}`]); rows.push([`Month: ${monthNames[m]} ${y}`]); rows.push([]); rows.push(['Date', 'Status']);
+        for (let d = 1; d <= total; d++) { const st = state.statusMap[isoDate(y, m, d)] || ''; rows.push([formatMDY(y, m, d), st]); }
+        const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+        const blob = new Blob(["\uFEFF", csv], { type: 'text/csv;charset=utf-8;' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `${state.name.replace(/\s+/g, '_')}_${monthNames[m]}_${y}.csv`; a.click(); URL.revokeObjectURL(url);
+      }
+
+      async function exportExcel(mode = 'default') {
+        const btn = mode === 'skp' ? document.getElementById('btnExportSKP') : document.getElementById('btnExport');
+        const originalText = btn.textContent;
+        btn.textContent = mode === 'skp' ? 'Generating SKP...' : 'Exporting...';
+        btn.disabled = true;
+
+        try {
+          // Gather data
+          const y = state.year, m = state.monthIndex, total = daysInMonth(y, m);
+          const rows = [];
+          for (let d = 1; d <= total; d++) {
+            const iso = isoDate(y, m, d);
+            const st = state.statusMap[iso] || '';
+            const dt = new Date(y, m, d);
+            const dayName = dt.toLocaleDateString('en-US', { weekday: 'short' });
+            const isSat = dt.getDay() === 6;
+            const isSun = dt.getDay() === 0;
+            let isWeekend = false;
+            if (isSat) isWeekend = 'sat';
+            if (isSun) isWeekend = 'sun';
+
+            rows.push({
+              date: formatMDY(y, m, d),
+              day: dayName,
+              status: st,
+              isWeekend: isWeekend
+            });
+          }
+
+          const payload = {
+            company: state.company,
+            employeeName: state.name,
+            employeeId: state.empId,
+            month: monthNames[m],
+            year: y,
+            summary: {
+              totalPresent: document.getElementById('summaryPresent').textContent,
+              totalLeave: document.getElementById('summaryLeave').textContent,
+              totalHoliday: document.getElementById('summaryHoliday').textContent,
+              attendancePercent: document.getElementById('summaryPercent').textContent.replace('%', '')
+            },
+            attendanceRows: rows
+          };
+
+          const formData = new FormData();
+          for (const [key, value] of Object.entries(payload)) {
+            formData.append(key, typeof value === 'object' ? JSON.stringify(value) : value);
+          }
+
+          // Mode handling
+          if (mode === 'skp') {
+            formData.append('templateId', 'skp-default');
+          } else {
+            formData.append('templateId', 'default');
+          }
+
+          // Call Backend
+          const res = await fetch('/api/export-template', {
+            method: 'POST',
+            body: formData
+          });
+
+          if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.error || 'Export failed');
+          }
+
+          // Handle Download
+          const blob = await res.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          // Use filename from header or fallback
+          const contentDisposition = res.headers.get('Content-Disposition');
+          let filename = `${state.name.replace(/\s+/g, '_')}_${monthNames[m]}_${y}.xlsx`;
+          if (contentDisposition && contentDisposition.indexOf('attachment') !== -1) {
+            const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+            const matches = filenameRegex.exec(contentDisposition);
+            if (matches != null && matches[1]) {
+              filename = matches[1].replace(/['"]/g, '');
+            }
+          }
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          window.URL.revokeObjectURL(url);
+
+        } catch (err) {
+          console.error(err);
+          alert('Export failed: ' + err.message + '\nEnsure local server is running (node server.js).');
+        } finally {
+          btn.textContent = originalText;
+          btn.disabled = false;
         }
-        const workingDays = Math.max(0, total - hol);
-        const attendancePercent = workingDays > 0 ? (present / workingDays) * 100 : 0;
-        const compOffPercent = hol > 0 ? (comp / hol) * 100 : 0;
-
-        const rows = [];
-        rows.push([`Company Name: ${state.company}`]);
-        rows.push([`Employee Name: ${state.name}`]);
-        rows.push([`Employee ID: ${state.empId}`]);
-        rows.push([`Month: ${monthNames[m]} ${y}`]);
-        rows.push([]);
-        rows.push(['Summary','Value']);
-        rows.push(['Total Days in Month', total]);
-        rows.push(['Total Present', present]);
-        rows.push(['Total Leave', leave]);
-        rows.push(['Total Comp-off', comp]);
-        rows.push(['Total Holiday', hol]);
-        rows.push(['Working Days', workingDays]);
-        rows.push(['Attendance %', `${attendancePercent.toFixed(1)}%`]);
-        rows.push(['Comp-off of Holiday', `${comp} / ${hol} (${compOffPercent.toFixed(1)}%)`]);
-        rows.push([]);
-        rows.push(['Date','Day','Status']);
-        for(let d=1; d<=total; d++){
-          const iso = isoDate(y,m,d);
-          const st = state.statusMap[iso] || '';
-          rows.push([ formatMDY(y,m,d), formatDayName(y,m,d), st ]);
-        }
-
-        const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\r\n');
-        const blob = new Blob(["\uFEFF", csv], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a'); a.href = url;
-        a.download = `${state.name.replace(/\s+/g,'_')}_${monthNames[m]}_${y}.csv`;
-        a.click();
-        URL.revokeObjectURL(url);
       }
 
-      /* Export Excel - data-only, robust offline */
-      function exportExcel(){
-        // XLSX is available globally because it was loaded in a separate <script> tag
-        if(typeof XLSX === 'undefined'){ throw new Error('Excel library not loaded.'); }
+      function markWeekendsAsHoliday() { const y = state.year, m = state.monthIndex, total = daysInMonth(y, m); for (let d = 1; d <= total; d++) { const dow = new Date(y, m, d).getDay(); if (dow === 6) state.statusMap[isoDate(y, m, d)] = 'ST'; if (dow === 0) state.statusMap[isoDate(y, m, d)] = 'SU'; } renderCalendar(); }
+      function clearMonth() { const y = state.year, m = state.monthIndex; Object.keys(state.statusMap).forEach(k => { const dt = new Date(k); if (dt.getFullYear() === y && dt.getMonth() === m) delete state.statusMap[k]; }); renderCalendar(); }
 
-        const y = state.year, m = state.monthIndex, total = daysInMonth(y,m);
-        let present=0, leave=0, comp=0, hol=0;
-        for(let d=1; d<=total; d++){
-          const st = state.statusMap[isoDate(y,m,d)] || '';
-          if(st==='P') present++;
-          if(st==='L') leave++;
-          if(st==='C') comp++;
-          if(st==='H') hol++;
-        }
-
-        const workingDays = Math.max(0, total - hol);
-        const attendancePercent = workingDays > 0 ? (present / workingDays) * 100 : 0;
-        const compOffPercent = hol > 0 ? (comp / hol) * 100 : 0;
-
-        const data = [];
-        data.push(['Company Name', state.company]);
-        data.push(['Employee Name', state.name]);
-        data.push(['Employee ID', state.empId]);
-        data.push(['Month', `${monthNames[m]} ${y}`]);
-        data.push([]);
-        data.push(['Summary','Value']);
-        data.push(['Total Days in Month', total]);
-        data.push(['Total Present', present]);
-        data.push(['Total Leave', leave]);
-        data.push(['Total Comp-off', comp]);
-        data.push(['Total Holiday', hol]);
-        data.push(['Working Days', workingDays]);
-        data.push(['Attendance %', `${attendancePercent.toFixed(1)}%`]);
-        data.push(['Comp-off of Holiday', `${comp} / ${hol} (${compOffPercent.toFixed(1)}%)`]);
-        data.push([]);
-        data.push(['Date','Day','Status']);
-        for(let d=1; d<=total; d++){
-          const iso = isoDate(y,m,d);
-          const st = state.statusMap[iso] || '';
-          data.push([ formatMDY(y,m,d), formatDayName(y,m,d), st ]);
-        }
-
-        const ws = XLSX.utils.aoa_to_sheet(data);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Attendance");
-
-        // The save method is cleaner and more standard for client-side file creation
-        XLSX.writeFile(wb, `${state.name.replace(/\s+/g,'_')}_${monthNames[m]}_${y}.xlsx`);
-      }
-
-      function exportExcelSafe(){ try { exportExcel(); } catch(e){ console.error('Export Excel failed:', e); alert('Export Excel failed: '+(e && e.message)); } }
-
-      function markWeekendsAsHoliday(){
-        const y = state.year, m = state.monthIndex, total = daysInMonth(y,m);
-        for(let d=1; d<=total; d++){
-          const dow = new Date(y,m,d).getDay();
-          // Saturday (6) or Sunday (0)
-          if(dow===0 || dow===6) state.statusMap[isoDate(y,m,d)] = 'H';
-        }
-        renderCalendar();
-      }
-
-      function clearMonth(){
-        const y = state.year, m = state.monthIndex;
-        // Efficiently clear only the statuses for the current month
-        Object.keys(state.statusMap).forEach(k=>{
-          const dt = new Date(k);
-          if(dt.getFullYear()===y && dt.getMonth()===m) delete state.statusMap[k];
-        });
-        renderCalendar();
-      }
-
-      // ---------------- createExcelBlobForSend ----------------
-      function createExcelBlobForSend(){
-        // Build the same 'data' used by exportExcel but return a Blob
-        const y = state.year, m = state.monthIndex, total = daysInMonth(y,m);
-        let present=0, leave=0, comp=0, hol=0;
-        for(let d=1; d<=total; d++){
-          const st = state.statusMap[isoDate(y,m,d)] || '';
-          if(st==='P') present++;
-          if(st==='L') leave++;
-          if(st==='C') comp++;
-          if(st==='H') hol++;
-        }
-
-        const workingDays = Math.max(0, total - hol);
-        const attendancePercent = workingDays > 0 ? (present / workingDays) * 100 : 0;
-        const compOffPercent = hol > 0 ? (comp / hol) * 100 : 0;
-
-        const data = [];
-        data.push(['Company Name', state.company]);
-        data.push(['Employee Name', state.name]);
-        data.push(['Employee ID', state.empId]);
-        data.push(['Month', `${monthNames[m]} ${y}`]);
-        data.push([]);
-        data.push(['Summary','Value']);
-        data.push(['Total Days in Month', total]);
-        data.push(['Total Present', present]);
-        data.push(['Total Leave', leave]);
-        data.push(['Total Comp-off', comp]);
-        data.push(['Total Holiday', hol]);
-        data.push(['Working Days', workingDays]);
-        data.push(['Attendance %', `${attendancePercent.toFixed(1)}%`]);
-        data.push(['Comp-off of Holiday', `${comp} / ${hol} (${compOffPercent.toFixed(1)}%)`]);
-        data.push([]);
-        data.push(['Date','Day','Status']);
-        for(let d=1; d<=total; d++){
-          const iso = isoDate(y,m,d);
-          const st = state.statusMap[iso] || '';
-          data.push([ formatMDY(y,m,d), formatDayName(y,m,d), st ]);
-        }
-
-        const ws = XLSX.utils.aoa_to_sheet(data);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Attendance");
-        const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-        const blob = new Blob([wbout], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-        return blob;
-      }
-
-      // ---------------- helper download & compose openers ----------------
-      function downloadBlob(blob, filename){
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(()=>URL.revokeObjectURL(url), 15000);
-      }
-
-      function openGmailCompose(to, subject, body){
-        const base = 'https://mail.google.com/mail/?view=cm&fs=1';
-        const params = `&to=${encodeURIComponent(to)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-        window.open(base + params, '_blank');
-      }
-
-      function openOutlookCompose(to, subject, body){
-        const base = 'https://outlook.office.com/mail/deeplink/compose';
-        const params = `?to=${encodeURIComponent(to)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-        window.open(base + params, '_blank');
-      }
-
-      function openMailtoCompose(to, subject, body){
-        const mailto = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-        window.location.href = mailto;
-      }
-
-      // ---------------- SEND MODAL (interactive) ----------------
-      function createSendModal(prefill = {}) {
-        // If exists, return it
-        if(document.getElementById('sendModal')) return document.getElementById('sendModal');
-
+      function createSendModal() {
+        if (document.getElementById('sendModal')) return document.getElementById('sendModal');
         const modal = document.createElement('div');
         modal.id = 'sendModal';
-        modal.style.position = 'fixed';
-        modal.style.inset = '0';
-        modal.style.display = 'flex';
-        modal.style.alignItems = 'center';
-        modal.style.justifyContent = 'center';
-        modal.style.zIndex = '1400';
-        modal.style.background = 'rgba(6,11,15,0.4)';
+        modal.style.position = 'fixed'; modal.style.inset = '0'; modal.style.display = 'flex'; modal.style.alignItems = 'center'; modal.style.justifyContent = 'center'; modal.style.zIndex = '1400'; modal.style.background = 'rgba(6,11,15,0.6)';
+
+        // Pre-filled Message Logic
+        const monthStr = monthNames[state.monthIndex] + ' ' + state.year;
+        const subjectPre = `Timesheet - ${state.name} - ${monthStr}`;
+        const bodyPre = `Hi sir,\n\nI have attached the timesheet for ${monthStr} for ${state.name}. Kindly review it for salary processing.\n\nBest regards,\n${state.name}`;
+
         modal.innerHTML = `
-          <div style="background:var(--card);border-radius:12px;padding:18px;max-width:720px; width:100%; box-shadow:0 16px 48px rgba(11,15,25,0.35);">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-              <div style="font-weight:700;font-size:16px">Send Timesheet</div>
-              <button id="sendModalClose" style="border:none;background:transparent;font-size:18px;cursor:pointer">✕</button>
+          <div style="background:#fff;border-radius:12px;padding:24px;max-width:720px;width:100%;box-shadow:0 25px 50px -12px rgba(0,0,0,0.25);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+              <div style="font-weight:700;font-size:18px;color:#111827">Send Timesheet</div>
+              <button id="sendModalClose" style="border:none;background:transparent;font-size:20px;cursor:pointer;color:#6b7280">✕</button>
             </div>
-
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-              <label style="font-size:13px;color:var(--muted)">To (company email)
-                <input id="modalTo" type="email" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #d1d5db" />
+            
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+              <label style="font-size:13px;color:#374151;font-weight:500">To (company email)
+                <input id="modalTo" type="email" placeholder="hr@company.com" style="width:100%;margin-top:6px;padding:10px;border-radius:6px;border:1px solid #d1d5db" />
               </label>
-              <label style="font-size:13px;color:var(--muted)">Subject
-                <input id="modalSubject" type="text" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #d1d5db" />
+              <label style="font-size:13px;color:#374151;font-weight:500">Subject
+                <input id="modalSubject" type="text" value="${subjectPre}" style="width:100%;margin-top:6px;padding:10px;border-radius:6px;border:1px solid #d1d5db" />
               </label>
-
-              <label style="font-size:13px;color:var(--muted)">Sender name
-                <input id="modalSenderName" type="text" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #d1d5db" />
+              <label style="font-size:13px;color:#374151;font-weight:500">Sender name
+                <input id="modalSenderName" type="text" value="${state.name}" style="width:100%;margin-top:6px;padding:10px;border-radius:6px;border:1px solid #d1d5db" />
               </label>
-              <label style="font-size:13px;color:var(--muted)">Sender email / phone
-                <div style="display:flex;gap:8px">
-                  <input id="modalSenderEmail" type="email" style="flex:1;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #d1d5db" />
-                  <input id="modalSenderPhone" type="text" style="width:140px;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #d1d5db" />
-                </div>
+              <label style="font-size:13px;color:#374151;font-weight:500">Sender email / phone
+                <input id="modalSenderEmail" type="text" placeholder="your@email.com" style="width:100%;margin-top:6px;padding:10px;border-radius:6px;border:1px solid #d1d5db" />
               </label>
             </div>
-
-            <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:8px">Message (editable)</label>
-            <textarea id="modalBody" rows="7" style="width:100%;padding:10px;border-radius:8px;border:1px solid #d1d5db;resize:vertical"></textarea>
-
-            <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
-              <button id="modalDownloadOnly" class="btn-3d btn-flat">Download Only</button>
-              <button id="modalGmail" class="btn-3d btn-accent">Download & Gmail</button>
-              <button id="modalOutlook" class="btn-3d btn-flat">Download & Outlook</button>
-              <button id="modalMailto" class="btn-control btn-clear">Download & Mail App</button>
+            
+            <label style="font-size:13px;color:#374151;font-weight:500;display:block;margin-bottom:8px">Message (editable)</label>
+            <textarea id="modalBody" rows="7" style="width:100%;padding:12px;border-radius:8px;border:1px solid #d1d5db;resize:vertical;font-family:inherit;margin-bottom:24px">${bodyPre}</textarea>
+            
+            <div style="display:flex;gap:12px;justify-content:flex-end;flex-wrap:wrap">
+              <button id="modalDownloadOnly" class="btn-3d btn-flat" style="border:1px solid #e5e7eb">Download Only</button>
+              <button id="modalGmail" class="btn-3d btn-accent" style="background:#0F9D58;color:#fff">Download & Gmail</button>
+              <button id="modalOutlook" class="btn-3d btn-accent" style="background:#0078D4;color:#fff">Download & Outlook</button>
+              <button id="modalMailApp" class="btn-3d btn-accent" style="background:#F59E0B;color:#fff">Download & Mail App</button>
             </div>
-          </div>
-        `;
+          </div>`;
 
         document.body.appendChild(modal);
 
-        // prefill controls from supplied values
-        const modalTo = modal.querySelector('#modalTo');
-        const modalSubject = modal.querySelector('#modalSubject');
-        const modalSenderName = modal.querySelector('#modalSenderName');
-        const modalSenderEmail = modal.querySelector('#modalSenderEmail');
-        const modalSenderPhone = modal.querySelector('#modalSenderPhone');
-        const modalBody = modal.querySelector('#modalBody');
-
-        modal.querySelector('#sendModalClose').addEventListener('click', ()=> modal.remove());
-        modal.addEventListener('click', (e)=> { if(e.target === modal) modal.remove(); });
-
-        // apply prefill
-        modalTo.value = prefill.to || '';
-        modalSenderName.value = prefill.senderName || '';
-        modalSenderEmail.value = prefill.senderEmail || '';
-        modalSenderPhone.value = prefill.senderPhone || '';
-        modalSubject.value = prefill.subject || `Timesheet - ${state.name} - ${monthNames[state.monthIndex]} ${state.year}`;
-        modalBody.value = prefill.body || `Hi sir,\n\nI have attached the timesheet for ${monthNames[state.monthIndex]} ${state.year} for ${state.name}. Kindly review it for salary processing.\n\nBest regards,\n${state.name}\n${prefill.senderPhone || ''}\n${prefill.senderEmail || ''}`;
-
-        // button handlers
-        modal.querySelector('#modalDownloadOnly').addEventListener('click', ()=> {
-          const blob = createExcelBlobForSend();
-          const filename = `${state.name.replace(/\s+/g,'_')}_${monthNames[state.monthIndex]}_${state.year}.xlsx`;
-          downloadBlob(blob, filename);
-          alert('Timesheet downloaded. Attach it to your email client when composing.');
+        // --- Action Logic ---
+        const getDetails = () => ({
+          to: modal.querySelector('#modalTo').value,
+          subject: modal.querySelector('#modalSubject').value,
+          body: modal.querySelector('#modalBody').value
         });
 
-        modal.querySelector('#modalGmail').addEventListener('click', ()=> {
-          const to = modalTo.value.trim();
-          if(!to){ alert('Please enter recipient email'); return; }
-          const subject = modalSubject.value.trim();
-          const body = modalBody.value;
-          const blob = createExcelBlobForSend();
-          const filename = `${state.name.replace(/\s+/g,'_')}_${monthNames[state.monthIndex]}_${state.year}.xlsx`;
-          downloadBlob(blob, filename);
-          openGmailCompose(to, subject, body);
+        const doDownload = () => {
+          // Re-use exportExcel logic? Or just trigger SKP download?
+          // User just wants to 'Download'. Let's assume SKP format is preferred, or Default?
+          // Context implies "attached the timesheet", so downloading it is the first step.
+          exportExcel('skp'); // Trigger standard download
+        };
+
+        modal.querySelector('#sendModalClose').addEventListener('click', () => modal.remove());
+
+        // 1. Download Only
+        modal.querySelector('#modalDownloadOnly').addEventListener('click', () => {
+          doDownload();
           modal.remove();
         });
 
-        modal.querySelector('#modalOutlook').addEventListener('click', ()=> {
-          const to = modalTo.value.trim();
-          if(!to){ alert('Please enter recipient email'); return; }
-          const subject = modalSubject.value.trim();
-          const body = modalBody.value;
-          const blob = createExcelBlobForSend();
-          const filename = `${state.name.replace(/\s+/g,'_')}_${monthNames[state.monthIndex]}_${state.year}.xlsx`;
-          downloadBlob(blob, filename);
-          openOutlookCompose(to, subject, body);
+        // 2. Gmail
+        modal.querySelector('#modalGmail').addEventListener('click', () => {
+          doDownload();
+          const d = getDetails();
+          const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(d.to)}&su=${encodeURIComponent(d.subject)}&body=${encodeURIComponent(d.body)}`;
+          window.open(gmailUrl, '_blank');
           modal.remove();
         });
 
-        modal.querySelector('#modalMailto').addEventListener('click', ()=> {
-          const to = modalTo.value.trim();
-          if(!to){ alert('Please enter recipient email'); return; }
-          const subject = modalSubject.value.trim();
-          const body = modalBody.value;
-          const blob = createExcelBlobForSend();
-          const filename = `${state.name.replace(/\s+/g,'_')}_${monthNames[state.monthIndex]}_${state.year}.xlsx`;
-          downloadBlob(blob, filename);
-          openMailtoCompose(to, subject, body);
+        // 3. Outlook / MailTo (Outlook usually captures mailto, but we can try specific URL if web version, but mailto is safer for desktop app)
+        modal.querySelector('#modalOutlook').addEventListener('click', () => {
+          doDownload();
+          const d = getDetails();
+          // Try standard mailto, most Outlook users have it set as default
+          const mailto = `mailto:${d.to}?subject=${encodeURIComponent(d.subject)}&body=${encodeURIComponent(d.body)}`;
+          window.location.href = mailto;
+          modal.remove();
+        });
+
+        // 4. Mail App
+        modal.querySelector('#modalMailApp').addEventListener('click', () => {
+          doDownload();
+          const d = getDetails();
+          const mailto = `mailto:${d.to}?subject=${encodeURIComponent(d.subject)}&body=${encodeURIComponent(d.body)}`;
+          window.location.href = mailto;
           modal.remove();
         });
 
         return modal;
       }
 
-      // -------------- send button top click handler --------------
-      function openSendDialog(){
-        // assemble prefill from current inputs if available
-        const companyEmailCandidate = ''; // if you keep a company email field elsewhere, fill it
-        const prefill = {
-          to: companyEmailCandidate || '',
-          subject: `Timesheet - ${state.name} - ${monthNames[state.monthIndex]} ${state.year}`,
-          senderName: state.name || '',
-          senderEmail: '', // you can map an input if present
-          senderPhone: '', // map if present
-          body: ''
-        };
-        createSendModal(prefill);
-      }
+      // wire events
+      if (selectMonth) selectMonth.addEventListener('change', () => { state.monthIndex = Number(selectMonth.value); renderHeading(); renderCalendar(); });
+      if (selectYear) selectYear.addEventListener('change', () => { state.year = Number(selectYear.value); renderHeading(); renderCalendar(); });
+      if (inputName) inputName.addEventListener('input', () => { state.name = inputName.value || 'Unnamed'; renderHeading(); });
+      if (inputCompany) inputCompany.addEventListener('input', () => { state.company = inputCompany.value || ''; renderHeading(); });
+      if (inputEmpId) inputEmpId.addEventListener('input', () => { state.empId = inputEmpId.value || ''; renderHeading(); });
 
-      // Events
-      if(selectMonth) selectMonth.addEventListener('change', ()=>{ state.monthIndex = Number(selectMonth.value); renderHeading(); renderCalendar(); });
-      if(selectYear) selectYear.addEventListener('change', ()=>{ state.year = Number(selectYear.value); renderHeading(); renderCalendar(); });
-      if(inputName) inputName.addEventListener('input', ()=>{ state.name = inputName.value || 'Unnamed'; renderHeading(); });
-      if(inputCompany) inputCompany.addEventListener('input', ()=>{ state.company = inputCompany.value || ''; renderHeading(); });
-      if(inputEmpId) inputEmpId.addEventListener('input', ()=>{ state.empId = inputEmpId.value || ''; renderHeading(); });
-      if(btnExport) btnExport.addEventListener('click', exportExcelSafe);
-      if(btnExportCSV) btnExportCSV.addEventListener('click', exportCSV);
-      if(btnMarkWeekends) btnMarkWeekends.addEventListener('click', ()=>{ markWeekendsAsHoliday(); });
-      if(btnClearMonth) btnClearMonth.addEventListener('click', ()=>{ if(confirm('Clear statuses for this month?')) clearMonth(); });
-      if(btnSendTop) btnSendTop.addEventListener('click', openSendDialog);
+      if (btnExportSKP) btnExportSKP.addEventListener('click', () => exportExcel('skp'));
+      if (btnExport) btnExport.addEventListener('click', () => exportExcel('default'));
+      if (btnExportCSV) btnExportCSV.addEventListener('click', exportCSV);
 
-      // initial render
-      renderHeading();
-      renderCalendar();
+      if (btnMarkWeekends) btnMarkWeekends.addEventListener('click', markWeekendsAsHoliday);
+      if (btnClearMonth) btnClearMonth.addEventListener('click', () => { if (confirm('Clear statuses for this month?')) clearMonth(); });
+      if (btnSendTop) btnSendTop.addEventListener('click', () => createSendModal());
+      if (btnPrevMonth) btnPrevMonth.addEventListener('click', () => { state.monthIndex = (state.monthIndex + 11) % 12; if (state.monthIndex === 11) state.year--; renderHeading(); renderCalendar(); if (selectMonth) selectMonth.value = state.monthIndex; if (selectYear) selectYear.value = state.year; });
+      if (btnNextMonth) btnNextMonth.addEventListener('click', () => { state.monthIndex = (state.monthIndex + 1) % 12; if (state.monthIndex === 0) state.year++; renderHeading(); renderCalendar(); if (selectMonth) selectMonth.value = state.monthIndex; if (selectYear) selectYear.value = state.year; });
+      if (btnToggleWeekendColor) btnToggleWeekendColor.addEventListener('click', () => { state.showWeekendColors = !state.showWeekendColors; renderCalendar(); });
+
+      // init
+      renderHeading(); renderCalendar();
+      window.__timesheetState = state; window.__renderCalendar = renderCalendar;
     })();
   </script>
+
 </body>
+
 </html>

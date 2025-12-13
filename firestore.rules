@@ -14,20 +14,30 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == userId;
     }
 
-    // Users Collection: STRICT
-    // - Owner can read/write their own doc.
-    // - Adming can read/write ANY doc.
+    // Users Collection
+    // Rules:
+    // - Owner can read, update, delete their own doc.
+    // - Any auth user can create (signup flow).
+    // - Admin can do anything.
     match /users/{userId} {
-      allow read, write: if isOwner(userId) || isAdmin();
+      allow read, update, delete: if isOwner(userId) || isAdmin();
+      allow create: if request.auth != null; 
     }
 
     // Profiles (Dating App): 
     // - All authenticated users can read (to verify matches).
     // - Owner can write their own.
     // - Admin can write any.
-    match /profiles/{userId} {
-      allow read: if request.auth != null;
+    match /datingProfiles/{userId} {
+      allow read: if true;
       allow write: if isOwner(userId) || isAdmin();
+    }
+
+    // Connections / Likes
+    match /connections/{connectionId} {
+      allow read: if request.auth != null && (request.auth.uid == resource.data.fromUid || request.auth.uid == resource.data.toUid);
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.fromUid;
+      allow update: if request.auth != null && (request.auth.uid == resource.data.fromUid || request.auth.uid == resource.data.toUid);
     }
 
     // Default: Deny everything else unless Admin

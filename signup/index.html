@@ -1,151 +1,332 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Sign Up - Astravyn</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Montserrat:wght@700&display=swap"
-        rel="stylesheet">
-    <style>
-        /* Reuse core styles from main page */
-        html,
-        body {
-            height: 100%;
-            margin: 0;
-            font-family: Inter, sans-serif;
-        }
+  <meta charset="UTF-8" />
+  <title>Astravyn – Create Account</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
 
-        body {
-            background: url("../assets/starry-night.jpg") no-repeat center center fixed;
-            background-size: cover;
-            color: #fff;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at top, #1a2950 0, #020615 55%, #000 100%);
+      color: #fff;
+    }
 
-        .card {
-            width: 100%;
-            max-width: 400px;
-            background: linear-gradient(180deg, rgba(10, 30, 46, 0.85), rgba(6, 20, 33, 0.75));
-            border-radius: 18px;
-            padding: 36px;
-            text-align: center;
-            box-shadow: 0 30px 80px rgba(2, 8, 18, 0.7);
-            backdrop-filter: blur(8px);
-            border: 1px solid rgba(255, 255, 255, 0.04);
-        }
+    .card {
+      width: 100%;
+      max-width: 420px;
+      background: rgba(5, 12, 30, 0.96);
+      border-radius: 24px;
+      padding: 32px 32px 24px;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.75);
+      border: 1px solid rgba(120, 162, 255, 0.25);
+    }
 
-        .logo {
-            font-family: "Montserrat", sans-serif;
-            font-size: 32px;
-            margin: 0 0 20px;
-            color: #fff;
-        }
+    .brand {
+      text-align: center;
+      margin-bottom: 8px;
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+    }
 
-        input {
-            width: 100%;
-            padding: 12px;
-            margin: 8px 0;
-            border-radius: 8px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            background: rgba(255, 255, 255, 0.05);
-            color: #fff;
-            box-sizing: border-box;
-        }
+    .subtitle {
+      text-align: center;
+      margin-bottom: 24px;
+      font-size: 18px;
+      font-weight: 600;
+    }
 
-        button {
-            width: 100%;
-            padding: 12px;
-            margin-top: 16px;
-            border-radius: 40px;
-            border: none;
-            background: linear-gradient(90deg, #06b6d4, #3b82f6);
-            color: #fff;
-            font-weight: 700;
-            cursor: pointer;
-            transition: transform .14s ease;
-        }
+    label {
+      display: block;
+      font-size: 13px;
+      margin-bottom: 6px;
+      color: #cdd8ff;
+    }
 
-        button:hover {
-            transform: translateY(-2px);
-        }
+    .input {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid rgba(112, 128, 255, 0.5);
+      background: rgba(10, 16, 40, 0.9);
+      color: #fff;
+      font-size: 14px;
+      outline: none;
+      transition: border 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+      margin-bottom: 14px;
+    }
 
-        .link {
-            display: block;
-            margin-top: 16px;
-            color: rgba(255, 255, 255, 0.6);
-            font-size: 14px;
-            text-decoration: none;
-        }
+    .input::placeholder {
+      color: #6f7bb5;
+    }
 
-        .link:hover {
-            color: #fff;
-        }
+    .input:focus {
+      border-color: #4f8cff;
+      box-shadow: 0 0 0 1px rgba(79, 140, 255, 0.5);
+      background: rgba(14, 21, 54, 0.98);
+    }
 
-        .error {
-            color: #ff6b6b;
-            font-size: 14px;
-            margin-top: 10px;
-            display: none;
-        }
-    </style>
+    .btn {
+      width: 100%;
+      margin-top: 4px;
+      padding: 12px 16px;
+      border-radius: 999px;
+      border: none;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      background: linear-gradient(135deg, #1e90ff, #3bb3ff);
+      color: #fff;
+      box-shadow: 0 12px 30px rgba(0, 153, 255, 0.5);
+      transition: transform 0.1s ease, box-shadow 0.1s ease, opacity 0.15s ease;
+    }
+
+    .btn:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 15px 35px rgba(0, 153, 255, 0.6);
+    }
+
+    .btn:active:not(:disabled) {
+      transform: translateY(0);
+      box-shadow: 0 10px 25px rgba(0, 153, 255, 0.4);
+    }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: default;
+      box-shadow: none;
+    }
+
+    .feedback {
+      margin-top: 10px;
+      font-size: 13px;
+      text-align: center;
+      min-height: 18px;
+    }
+
+    .feedback.error {
+      color: #ff6b88;
+    }
+
+    .feedback.success {
+      color: #52ffa3;
+    }
+
+    .hint-row {
+      margin-top: 12px;
+      font-size: 13px;
+      text-align: center;
+      color: #9ba4d9;
+    }
+
+    .hint-row a {
+      color: #4f8cff;
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .hint-row a:hover {
+      text-decoration: underline;
+    }
+
+    .back-link {
+      margin-top: 6px;
+      font-size: 13px;
+      text-align: center;
+    }
+  </style>
 </head>
 
 <body>
-    <div class="card">
-        <h1 class="logo">Astravyn</h1>
-        <h2>Create Account</h2>
-        <form id="signupForm">
-            <input type="text" id="name" placeholder="Full Name" required>
-            <input type="email" id="email" placeholder="Email" required>
-            <input type="password" id="password" placeholder="Password (min 8 chars)" minlength="8" required>
-            <button type="submit" id="submitBtn">Sign Up</button>
-            <div id="errorMsg" class="error"></div>
-        </form>
-        <a href="../login/index.html" class="link">Already have an account? Sign In</a>
-        <a href="../index.html" class="link">Back to Home</a>
-    </div>
+  <div class="card">
+    <div class="brand">Astravyn</div>
+    <div class="subtitle">Create Account</div>
 
-    <script type="module">
-        import { signUp } from '../js/auth.js';
+    <form id="signup-form">
+      <label for="name">Full Name</label>
+      <input id="name" class="input" type="text" placeholder="Your name" required />
 
-        const form = document.getElementById('signupForm');
-        const errorMsg = document.getElementById('errorMsg');
-        const submitBtn = document.getElementById('submitBtn');
+      <label for="email">Email</label>
+      <input id="email" class="input" type="email" placeholder="you@example.com" required />
 
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            errorMsg.style.display = 'none';
-            submitBtn.disabled = true;
-            submitBtn.textContent = 'Creating Account...';
+      <label for="password">Password</label>
+      <input id="password" class="input" type="password" placeholder="••••••••" required />
 
-            const name = document.getElementById('name').value;
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
 
-            try {
-                await signUp(email, password, name);
-                window.location.href = '../index.html'; // Redirect to home
-            } catch (error) {
-                console.error("Signup Error:", error);
-                if (error.code === 'permission-denied' || error.message.includes('permission')) {
-                    errorMsg.innerHTML = `
-                        <strong>Permission Denied!</strong><br>
-                        Data could not be saved to Firestore.<br>
-                        <em>Tip: Did you deploy the security rules? Run:</em><br>
-                        <code>firebase deploy --only firestore:rules</code>
-                    `;
-                } else {
-                    errorMsg.textContent = error.message;
-                }
-                errorMsg.style.display = 'block';
-                submitBtn.disabled = false;
-                submitBtn.textContent = 'Sign Up';
-            }
-        });
-    </script>
+
+      <button id="signup-btn" class="btn" type="submit">
+        Sign Up
+      </button>
+    </form>
+
+    <p id="signup-feedback" class="feedback"></p>
+
+    <p class="hint-row">
+      Already have an account?
+      <a href="../login/index.html">Sign In</a>
+    </p>
+    <p class="back-link">
+      <a href="../index.html" style="color:#6f7bb5;text-decoration:none;">Back to Home</a>
+    </p>
+  </div>
+
+  <!-- Firebase Signup Logic -->
+  <script type="module">
+    import { auth, db, storage } from '../js/firebase-config.js';
+    import { createUserWithEmailAndPassword, updateProfile } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+    import { doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+    import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
+
+    const form = document.getElementById("signup-form");
+    const btn = document.getElementById("signup-btn");
+    const feedback = document.getElementById("signup-feedback");
+
+    function showMessage(message, type = "error") {
+      feedback.textContent = message;
+      feedback.classList.remove("error", "success");
+      if (type === "success") {
+        feedback.classList.add("success");
+      } else {
+        feedback.classList.add("error");
+      }
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const name = document.getElementById("name").value.trim();
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value;
+      const file = null;
+
+      if (!name || !email || !password) {
+        showMessage("Please fill in all fields.");
+        return;
+      }
+
+      if (password.length < 6) {
+        showMessage("Password must be at least 6 characters.");
+        return;
+      }
+
+      btn.disabled = true;
+      const originalText = btn.textContent;
+      btn.textContent = "Creating account…";
+      showMessage(""); // clear
+
+      try {
+        // 1. Create Auth User
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+        console.log("Signup success:", user);
+
+        let photoURL = "";
+        let storagePath = "";
+
+        // Update Auth Profile (Name only)
+        await updateProfile(user, { displayName: name });
+
+        // 2. Upload Photo if selected
+        if (file) {
+
+          try {
+            showMessage("Uploading photo...", "success"); // Intermediate status
+            // Use timestamp to ensure unique filename
+            storagePath = `datingProfiles/${user.uid}/${Date.now()}_${file.name}`;
+            const storageRef = ref(storage, storagePath);
+
+            const snapshot = await uploadBytes(storageRef, file);
+            photoURL = await getDownloadURL(snapshot.ref);
+
+            // Update Auth Profile
+            await updateProfile(user, { displayName: name, photoURL: photoURL });
+          } catch (uploadErr) {
+            console.error("Photo upload failed:", uploadErr);
+            // Non-blocking, continue with signup
+          }
+        }
+
+
+        // 3. Create Firestore Document
+        const role = (email === "admin@astravyn.com") ? "admin" : "user";
+        try {
+          // Add to 'users' collection
+          await setDoc(doc(db, "users", user.uid), {
+            uid: user.uid,
+            email: user.email,
+            role: role,
+            isBlocked: false,
+            createdAt: serverTimestamp(),
+            displayName: name,
+            photoURL: photoURL,
+            lastLogin: serverTimestamp()
+          });
+
+          // Also Create/Update 'datingProfiles' for instant access
+          try {
+            const photoEntry = photoURL ? [{
+              url: photoURL,
+              path: storagePath,
+              caption: 'Profile Photo'
+            }] : [];
+
+            await setDoc(doc(db, "datingProfiles", user.uid), {
+              id: user.uid,
+              displayName: name,
+              photoURL: photoURL,
+              email: user.email,
+              location: "Unknown", // Default
+              age: "",
+              profession: "",
+              bio: "New to Astravyn.",
+              interests: [],
+              photos: photoEntry
+            }, { merge: true });
+
+          } catch (dpErr) { console.warn("Dating profile sync error", dpErr); }
+
+        } catch (dbError) {
+          console.error("Error creating user document:", dbError);
+        }
+
+        showMessage("Account created! Redirecting to sign in…", "success");
+
+        setTimeout(() => {
+          window.location.href = "../login/index.html";
+        }, 1200);
+      } catch (error) {
+        console.error("Signup Error:", error);
+        switch (error.code) {
+          case "auth/email-already-in-use":
+            showMessage("An account with this email already exists. Please sign in instead.");
+            break;
+          case "auth/invalid-email":
+            showMessage("That email address looks invalid. Please check and try again.");
+            break;
+          case "auth/weak-password":
+            showMessage("Password is too weak. Try something a bit stronger.");
+            break;
+          default:
+            showMessage("Something went wrong: " + error.message);
+            break;
+        }
+      } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+      }
+    });
+  </script>
 </body>
 
 </html>

@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <title>Astravyn — Edit Profile</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="/dating/dating-theme.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script type="module" src="/dating/user-context.js"></script>
+  <script type="module" src="/dating/app.js"></script>
+</head>
+
+<body data-page="profile">
+  <div class="page-wrapper">
+    <header class="dating-nav">
+      <div class="dating-nav-inner">
+        <div class="brand">
+          <div class="brand-logo">A</div>
+          <div class="brand-text">
+            <span class="brand-text-main">Astravyn Match</span>
+            <span class="brand-text-sub">Dating & Matrimony</span>
+          </div>
+        </div>
+        <nav class="nav-links">
+          <a href="/dating/index.html" data-nav="home">Home</a>
+          <a href="/dating/matches.html" data-nav="matches">Matches</a>
+          <a href="/dating/search.html" data-nav="search">Search</a>
+          <a href="/dating/profile.html" data-nav="profile">Profile</a>
+          <a href="/dating/settings.html" data-nav="settings">Settings</a>
+        </nav>
+        <div class="nav-avatar" id="nav-user">
+          <div class="nav-avatar-initial">U</div>
+          <div class="nav-avatar-name">You</div>
+        </div>
+      </div>
+    </header>
+
+    <main class="main">
+      <div class="container">
+        <div class="section-header">
+          <div>
+            <h1 class="section-title">My Profile</h1>
+            <p class="section-subtitle">Manage your personal details and photos.</p>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:0.85rem; color:var(--text-muted); margin-bottom:0.4rem;">Profile Completion</div>
+            <div
+              style="width:150px; height:6px; background:rgba(255,255,255,0.1); border-radius:10px; overflow:hidden;">
+              <div style="width:75%; height:100%; background:var(--neon-cyan); box-shadow:0 0 10px var(--neon-cyan);">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-profile">
+          <!-- Left: Form -->
+          <div class="card">
+            <h3 style="margin-bottom:1.5rem; color:white;">Basic Details</h3>
+
+            <form id="profile-editor">
+              <div class="grid grid-2" style="gap: 1rem;">
+                <div class="form-group">
+                  <label class="form-label">Display Name</label>
+                  <input id="displayName" class="form-input" placeholder="e.g. Alex" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Age</label>
+                  <input id="age" type="number" class="form-input" min="18" />
+                </div>
+              </div>
+
+              <div class="grid grid-2" style="gap: 1rem;">
+                <div class="form-group">
+                  <label class="form-label">Gender</label>
+                  <select id="gender" class="form-select">
+                    <option value="">Select</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Non-binary">Non-binary</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Marital Status</label>
+                  <select id="maritalStatus" class="form-select">
+                    <option value="">Select</option>
+                    <option value="Single">Single</option>
+                    <option value="Married">Married</option>
+                    <option value="Divorced">Divorced</option>
+                    <option value="Widowed">Widowed</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Location</label>
+                <input id="location" class="form-input" list="city-list" placeholder="Start typing city..." />
+                <datalist id="city-list">
+                  <option value="Kochi">
+                  <option value="Trivandrum">
+                  <option value="Bangalore">
+                  <option value="Mumbai">
+                  <option value="Delhi">
+                  <option value="Chennai">
+                  <option value="Dubai">
+                  <option value="London">
+                  <option value="New York">
+                </datalist>
+              </div>
+
+              <div class="grid grid-2" style="gap: 1rem;">
+                <div class="form-group">
+                  <label class="form-label">Profession</label>
+                  <input id="profession" class="form-input" placeholder="e.g. Software Engineer" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Income (Annual)</label>
+                  <select id="income" class="form-select">
+                    <option value="">Select Range</option>
+                    <option value="Below 5L">Below 5L</option>
+                    <option value="5L - 10L">5L - 10L</option>
+                    <option value="10L - 25L">10L - 25L</option>
+                    <option value="25L - 50L">25L - 50L</option>
+                    <option value="Above 50L">Above 50L</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Interests</label>
+                <input id="interests" class="form-input" placeholder="e.g. Hiking, Photography, Reading" />
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">About Me</label>
+                <textarea id="bio" class="form-textarea" rows="4"
+                  placeholder="Write a short bio to introduce yourself..."></textarea>
+              </div>
+
+              <div class="form-group"
+                style="display:flex; align-items:center; gap:0.75rem; background:rgba(255,255,255,0.03); padding:0.8rem; border-radius:var(--radius-md); border:1px solid rgba(255,255,255,0.08);">
+                <input id="isVisible" type="checkbox" style="width:18px; height:18px; accent-color:var(--neon-cyan);">
+                <div>
+                  <span style="font-weight:600; font-size:0.95rem; color:white;">Visible to others</span>
+                  <div style="font-size:0.8rem; color:var(--text-muted);">Allow other users to find your profile.</div>
+                </div>
+              </div>
+
+              <div style="margin-top:2rem; display:flex; gap:1rem; align-items:center;">
+                <button id="saveProfile" type="button" class="btn btn-primary">Save Changes</button>
+                <p id="save-status"
+                  style="font-size:0.85rem; color:var(--neon-cyan); opacity:0; transition:opacity 0.3s;">Saved
+                  successfully!</p>
+              </div>
+            </form>
+          </div>
+
+          <!-- Right: Photos -->
+          <div class="card">
+            <h3 style="margin-bottom:1rem; color:white;">Gallery</h3>
+            <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1.5rem;">
+              Upload high quality photos for better visibility.
+            </p>
+
+            <div id="photo-gallery-grid"
+              style="display:grid; grid-template-columns: repeat(3, 1fr); gap:0.75rem; margin-bottom:1.5rem;">
+              <!-- 5 slots + add button -->
+              <div class="photo-slot"><span style="font-size:1.5rem;color:rgba(255,255,255,0.2);">+</span></div>
+              <div class="photo-slot"><span style="font-size:1.5rem;color:rgba(255,255,255,0.2);">+</span></div>
+              <div class="photo-slot"><span style="font-size:1.5rem;color:rgba(255,255,255,0.2);">+</span></div>
+              <div class="photo-slot"><span style="font-size:1.5rem;color:rgba(255,255,255,0.2);">+</span></div>
+              <div class="photo-slot"><span style="font-size:1.5rem;color:rgba(255,255,255,0.2);">+</span></div>
+              <div class="photo-slot"><span style="font-size:1.5rem;color:rgba(255,255,255,0.2);">+</span></div>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:0.8rem;">
+              <input id="photoFile" type="file" accept="image/*" style="display:none;" />
+              <button id="uploadPhotoBtn" class="btn btn-ghost"
+                style="width:100%; border-style:dashed; justify-content:center;">
+                <span style="font-size:1.2rem;">+</span> Upload Photo
+              </button>
+
+              <div style="position:relative;">
+                <input id="photoURL" class="form-input" style="font-size:0.85rem; padding-right:80px;"
+                  placeholder="Paste Image URL" />
+                <button id="addUrlBtn"
+                  style="position:absolute; right:4px; top:4px; bottom:4px; padding:0 0.8rem; background:var(--neon-cyan); color:white; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:0.8rem;">Add</button>
+              </div>
+            </div>
+
+            <div style="margin-top:2rem; padding-top:1.5rem; border-top:1px solid rgba(255,255,255,0.1);">
+              <h4 style="margin-bottom:0.5rem; font-size:1rem;">Badges</h4>
+              <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                <span class="chip" style="font-size:0.75rem;">✔ Verified ID</span>
+                <span class="chip"
+                  style="font-size:0.75rem; border-color:var(--neon-purple); color:var(--neon-purple);">💎
+                  Premium</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+  <script type="module" src="/dating/profile.js"></script>
+</body>
+
+</html>

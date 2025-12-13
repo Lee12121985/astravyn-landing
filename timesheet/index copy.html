@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Attendance Details — Timesheet</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+  <style>
+    :root{
+      --bg:#f5f7fa;--card:#fff;--muted:#6b7280;
+      --neon-cyan:#06b6d4;--neon-green:#10B981;--neon-orange:#F59E0B;
+      --radius:12px;font-family:"Inter",system-ui,Roboto,sans-serif;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:#111827}
+    .container{max-width:1180px;margin:28px auto;padding:18px}
+    .card{background:var(--card);border-radius:var(--radius);box-shadow:0 12px 36px rgba(11,15,25,.06);padding:18px}
+    .layout{display:flex;gap:18px;align-items:flex-start}
+    .left{flex:1}.right{width:360px}
+    .calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:14px;padding:8px}
+    .day{position:relative;min-height:86px;border-radius:10px;border:1px solid #eef2f6;display:flex;justify-content:center;align-items:center;background:#fff;cursor:pointer}
+    .day.hidden{visibility:hidden;pointer-events:none;background:transparent;border:none}
+    .num{position:absolute;top:8px;left:10px;font-weight:600;font-size:13px;color:#374151}
+    .pill{padding:8px 12px;border-radius:28px;font-weight:700;font-size:13px;display:inline-flex;align-items:center;justify-content:center;min-width:36px;min-height:36px}
+    .pill.P{background:var(--neon-green);color:#042812}
+    .pill.C{background:#3b82f6;color:#fff}
+    .pill.L{background:var(--neon-orange);color:#2f1600}
+    .pill.H,.pill.ST,.pill.SU{background:#9ca3af;color:#fff}
+    .weekday-row{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-bottom:12px}
+    .weekday{font-size:13px;color:var(--muted);text-align:center;font-weight:700}
+    table{width:100%;border-collapse:collapse;margin-top:10px;border-radius:8px;overflow:hidden}
+    th,td{border:1px solid #eff3f6;padding:8px;text-align:center;font-size:13px;background:#fff}
+    th{background:#fbfbfc;font-weight:700}
+    .legend{display:flex;gap:18px;align-items:center;margin-top:18px}
+    .small{font-size:13px;color:var(--muted)}
+    .top-toolbar{display:flex;gap:10px;align-items:center;justify-content:flex-end}
+    .btn-3d{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;border-radius:10px;border:none;cursor:pointer;font-weight:700;font-size:13px}
+    .btn-accent{background:linear-gradient(180deg,#06b6d4,#0596ab);color:#fff;box-shadow:0 6px 18px rgba(6,182,212,.14)}
+    .btn-flat{background:#fff;color:#0f1724;border:1px solid #e6edf2;padding:10px 14px}
+    .btn-control{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:8px;border:none;font-weight:700;font-size:13px;cursor:pointer}
+    .btn-weekends{background:linear-gradient(180deg,#10b981,#059669);color:#fff}
+    .btn-clear{background:linear-gradient(180deg,#fbbf24,#f59e0b);color:#fff}
+    .template-select{padding:.5rem .9rem;border-radius:9999px;border:1px solid var(--neon-cyan);background:rgba(5,11,20,.03);color:var(--neon-cyan);font-size:13px}
+    .btn-upload{background:transparent;border:1px dashed var(--neon-cyan);color:var(--neon-cyan);padding:.55rem 1rem;border-radius:9999px;cursor:pointer;font-size:13px;display:inline-flex;gap:6px;align-items:center;font-weight:700;text-transform:uppercase}
+    .btn-upload input{display:none}
+    .status-cell{font-weight:700;border-left:4px solid transparent}
+    .status-cell.P{background:linear-gradient(180deg,rgba(52,199,89,0.18),rgba(52,199,89,0.06));color:#024d1a;border-left-color:#28a745}
+    .status-cell.C{background:linear-gradient(180deg,rgba(59,130,246,0.18),rgba(59,130,246,0.06));color:#06326f;border-left-color:#3b82f6}
+    .status-cell.L{background:linear-gradient(180deg,rgba(245,158,11,0.18),rgba(245,158,11,0.06));color:#5c3a00;border-left-color:#f59e0b}
+    .status-cell.H,.status-cell.ST,.status-cell.SU{background:linear-gradient(180deg,rgba(156,163,175,0.18),rgba(156,163,175,0.06));color:#1e1e1e;border-left-color:#9ca3af}
+    .month-nav{display:flex;align-items:center;gap:8px}
+    .icon-btn{width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;border:1px solid #e6edf2;background:#fff;cursor:pointer}
+    @media (max-width:900px){.layout{flex-direction:column}.right{width:100%}}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h2 style="margin:0;font-size:20px">Attendance Details — <span id="headingMonth">October 2025</span></h2>
+        <div class="top-toolbar">
+          <select id="selectTemplate" class="template-select" title="Choose export template">
+            <option value="default">Normal Export</option>
+          </select>
+          <label class="btn-upload" title="Upload custom Excel template" aria-label="Upload template">
+            <input type="file" id="fileTemplate" accept=".xlsx">
+            <span>UPLOAD</span>
+          </label>
+          <button id="btnExport" class="btn-3d btn-accent" title="Export as Excel (.xlsx)">Export Excel</button>
+          <button id="btnExportCSV" class="btn-3d btn-flat" title="Export as CSV (.csv)">Export CSV</button>
+          <button id="btnSendTop" class="btn-3d btn-accent" title="Open send dialog">Send</button>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
+        <label style="min-width:220px">Company Name
+          <input id="inputCompany" value="NovaEdge Technologies" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #d1d5db">
+        </label>
+        <label style="min-width:220px">Employee Name
+          <input id="inputName" value="Aarav Kiran" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #d1d5db">
+        </label>
+        <label style="min-width:160px">Employee ID
+          <input id="inputEmpId" value="NE-2047" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #d1d5db">
+        </label>
+
+        <div class="controls-inline" style="margin-right:auto;align-items:center;justify-content:flex-start;gap:12px;flex:1">
+          <div class="month-nav" style="align-items:center">
+            <button id="btnPrevMonth" class="icon-btn" title="Previous month" aria-label="Previous month">◀</button>
+            <label style="margin:0;font-weight:600">Month
+              <select id="selectMonth" style="margin-left:6px;padding:8px;border-radius:8px"></select>
+            </label>
+            <label style="margin:0;font-weight:600">Year
+              <select id="selectYear" style="margin-left:6px;padding:8px;border-radius:8px"></select>
+            </label>
+            <button id="btnNextMonth" class="icon-btn" title="Next month" aria-label="Next month">▶</button>
+          </div>
+
+          <button id="btnMarkWeekends" class="btn-control btn-weekends">Mark Weekends H</button>
+          <button id="btnToggleWeekendColor" class="btn-control" title="Toggle weekend background">Weekend Color</button>
+          <button id="btnClearMonth" class="btn-control btn-clear">Clear Month</button>
+        </div>
+      </div>
+
+      <div class="layout">
+        <div class="left card" style="padding:18px">
+          <div class="small" style="margin-bottom:8px">Click a date to cycle status: <strong>Empty → P → C → L → H →</strong></div>
+          <div class="weekday-row" aria-hidden="true">
+            <div class="weekday">Mon</div><div class="weekday">Tue</div><div class="weekday">Wed</div>
+            <div class="weekday">Thu</div><div class="weekday">Fri</div><div class="weekday">Sat</div><div class="weekday">Sun</div>
+          </div>
+
+          <div style="max-height:560px;overflow:auto;padding:6px">
+            <div id="calendar" class="calendar" role="grid" aria-label="Calendar"></div>
+          </div>
+
+          <div class="legend">
+            <div class="item"><span class="pill P">P</span><span class="small" style="margin-left:8px">Present</span></div>
+            <div class="item"><span class="pill C">C</span><span class="small" style="margin-left:8px">Comp-off</span></div>
+            <div class="item"><span class="pill L">L</span><span class="small" style="margin-left:8px">Leave</span></div>
+            <div class="item"><span class="pill H">H</span><span class="small" style="margin-left:8px">Holiday</span></div>
+          </div>
+        </div>
+
+        <div class="right">
+          <div class="card">
+            <div style="font-weight:700;margin-bottom:8px">Summary</div>
+            <div style="font-size:14px;line-height:1.6">
+              <div style="display:flex;justify-content:space-between"><div>Company</div><div id="summaryCompany">NovaEdge Technologies</div></div>
+              <div style="display:flex;justify-content:space-between"><div>Employee</div><div id="summaryName">Aarav Kiran</div></div>
+              <div style="display:flex;justify-content:space-between"><div>Employee ID</div><div id="summaryEmpId">NE-2047</div></div>
+              <div style="display:flex;justify-content:space-between"><div>Month</div><div id="summaryMonth">October 2025</div></div>
+              <div style="display:flex;justify-content:space-between"><div>Total Present</div><div id="summaryPresent">0</div></div>
+              <div style="display:flex;justify-content:space-between"><div>Total Leave</div><div id="summaryLeave">0</div></div>
+              <div style="display:flex;justify-content:space-between"><div>Total Comp-off</div><div id="summaryComp">0</div></div>
+              <div style="display:flex;justify-content:space-between"><div>Total Holiday</div><div id="summaryHoliday">0</div></div>
+              <div style="display:flex;justify-content:space-between"><div>Attendance %</div><div id="summaryPercent">0%</div></div>
+              <div style="display:flex;justify-content:space-between"><div>Comp-off of Holiday</div><div id="summaryCompOfHoliday">0 / 0 (0.0%)</div></div>
+            </div>
+
+            <div style="margin-top:12px">
+              <div style="font-weight:600;margin-bottom:8px">Report Preview</div>
+              <div style="max-height:360px;overflow:auto">
+                <table id="reportTable"><thead><tr><th>Date</th><th>Day</th><th>Status</th></tr></thead><tbody id="reportBody"></tbody></table>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (function(){
+    const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+    function daysInMonth(y,m){ return new Date(y,m+1,0).getDate(); }
+    function isoDate(y,m,d){ return `${String(y).padStart(4,'0')}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
+    function formatDayName(y,m,d){ return new Date(y,m,d).toLocaleDateString(undefined,{ weekday:'short' }); }
+    function formatMDY(y,m,d){ return `${m+1}/${d}/${y}`; }
+
+    const state = { year: 2025, monthIndex: 9, company:'NovaEdge Technologies', name:'Aarav Kiran', empId:'NE-2047', statusMap: {}, showWeekendColors:false };
+
+    const el = id=>document.getElementById(id);
+    const selectMonth = el('selectMonth'), selectYear = el('selectYear'), headingMonth = el('headingMonth'), calendarEl = el('calendar');
+    const inputName = el('inputName'), inputCompany = el('inputCompany'), inputEmpId = el('inputEmpId');
+    const summaryCompany = el('summaryCompany'), summaryName = el('summaryName'), summaryEmpId = el('summaryEmpId'), summaryMonth = el('summaryMonth');
+    const summaryPresent = el('summaryPresent'), summaryLeave = el('summaryLeave'), summaryComp = el('summaryComp'), summaryHoliday = el('summaryHoliday');
+    const summaryPercent = el('summaryPercent'), summaryCompOfHoliday = el('summaryCompOfHoliday'); const reportBody = el('reportBody');
+    const btnExport = el('btnExport'), btnExportCSV = el('btnExportCSV'), btnMarkWeekends = el('btnMarkWeekends'), btnClearMonth = el('btnClearMonth'), btnSendTop = el('btnSendTop');
+    const selectTemplate = el('selectTemplate'), fileTemplate = el('fileTemplate');
+    const btnPrevMonth = el('btnPrevMonth'), btnNextMonth = el('btnNextMonth'), btnToggleWeekendColor = el('btnToggleWeekendColor');
+
+    // init selects
+    if (selectMonth){ selectMonth.innerHTML = monthNames.map((m,i)=>`<option value="${i}">${m}</option>`).join(''); selectMonth.value = state.monthIndex; }
+    if (selectYear){ const cur=new Date().getFullYear(); selectYear.innerHTML = Array.from({length:12},(_,i)=>cur-6+i).map(y=>`<option value="${y}">${y}</option>`).join(''); selectYear.value = state.year; }
+
+    function renderHeading(){
+      headingMonth.textContent = `${monthNames[state.monthIndex]} ${state.year}`;
+      summaryCompany.textContent = state.company; summaryName.textContent = state.name; summaryEmpId.textContent = state.empId; summaryMonth.textContent = `${monthNames[state.monthIndex]} ${state.year}`;
+    }
+
+    const CYCLE = ['', 'P', 'C', 'L', 'H'];
+
+    function updatePill(wrapper, status){
+      wrapper.innerHTML=''; if(!status) return;
+      const sp = document.createElement('span'); sp.className='pill '+status; sp.textContent = status; wrapper.appendChild(sp);
+    }
+
+    function createDayCell(y,m,d){
+      const iso = isoDate(y,m,d);
+      const cell = document.createElement('div'); cell.className='day'; cell.tabIndex=0; cell.setAttribute('role','gridcell'); cell.setAttribute('aria-label', `${monthNames[m]} ${d}, ${y}`); cell.dataset.date=iso;
+      const dow = new Date(y,m,d).getDay();
+      if (dow===6) cell.classList.add('saturday'); else if (dow===0) cell.classList.add('sunday'); else cell.classList.add('workday');
+      if (state.showWeekendColors){ if (dow===6) cell.style.background='linear-gradient(180deg, rgba(16,185,129,0.06), #fff)'; if (dow===0) cell.style.background='linear-gradient(180deg, rgba(249,115,22,0.05), #fff)'; }
+      const num = document.createElement('div'); num.className='num'; num.textContent=d; cell.appendChild(num);
+      const pillWrap=document.createElement('div'); pillWrap.className='pillWrap'; updatePill(pillWrap, state.statusMap[iso]||''); cell.appendChild(pillWrap);
+      cell.addEventListener('click', ()=>{
+        const cur = state.statusMap[iso]||''; const normCur = (cur==='ST'||cur==='SU')?'H':cur; let idx = CYCLE.indexOf(normCur); if(idx===-1) idx=0; idx=(idx+1)%CYCLE.length; let next=CYCLE[idx];
+        if(next==='H'){ if(dow===6) next='ST'; else if(dow===0) next='SU'; }
+        if(next==='') delete state.statusMap[iso]; else state.statusMap[iso]=next;
+        updatePill(pillWrap, state.statusMap[iso]||''); cell.setAttribute('aria-current-status', next||'Empty'); updateSummaryAndReport();
+      });
+      cell.addEventListener('keydown',(e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); cell.click(); }});
+      return cell;
+    }
+
+    function renderCalendar(){
+      calendarEl.innerHTML=''; const y=state.year,m=state.monthIndex; const total=daysInMonth(y,m); const firstDow=new Date(y,m,1).getDay(); const offset=(firstDow+6)%7;
+      for(let i=0;i<offset;i++){ const blank=document.createElement('div'); blank.className='day hidden'; calendarEl.appendChild(blank); }
+      for(let d=1; d<=total; d++) calendarEl.appendChild(createDayCell(y,m,d));
+      updateSummaryAndReport();
+    }
+
+    function updateSummaryAndReport(){
+      const y=state.year,m=state.monthIndex,total=daysInMonth(y,m);
+      let present=0, leave=0, comp=0, hol=0; reportBody.innerHTML='';
+      for(let d=1; d<=total; d++){
+        const iso=isoDate(y,m,d); const st=state.statusMap[iso]||'';
+        if(st==='P') present++; if(st==='L') leave++; if(st==='C') comp++; if(st==='H'||st==='ST'||st==='SU') hol++;
+        const tr=document.createElement('tr'); const td1=document.createElement('td'); td1.textContent=formatMDY(y,m,d); const td2=document.createElement('td'); td2.textContent=formatDayName(y,m,d);
+        const td3=document.createElement('td'); td3.textContent=st||'—'; td3.style.textAlign='center'; td3.className='status-cell' + (st?(' '+st):'');
+        tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3); reportBody.appendChild(tr);
+      }
+      summaryPresent.textContent=present; summaryLeave.textContent=leave; summaryComp.textContent=comp; summaryHoliday.textContent=hol;
+      const workingDays=Math.max(0,total-hol); const attendancePercent=workingDays>0?(present/workingDays)*100:0; const compOffPercent=hol>0?(comp/hol)*100:0;
+      summaryPercent.textContent = `${attendancePercent.toFixed(1)}%`; summaryCompOfHoliday.textContent = `${comp} / ${hol} (${compOffPercent.toFixed(1)}%)`;
+    }
+
+    // Exports (basic)
+    function exportCSV(){
+      const y=state.year,m=state.monthIndex,total=daysInMonth(y,m);
+      const rows=[]; rows.push([`Company Name: ${state.company}`]); rows.push([`Employee Name: ${state.name}`]); rows.push([`Employee ID: ${state.empId}`]); rows.push([`Month: ${monthNames[m]} ${y}`]); rows.push([]); rows.push(['Summary','Value']);
+      let present=0, leave=0, comp=0, hol=0;
+      for(let d=1; d<=total; d++){ const st=state.statusMap[isoDate(y,m,d)]||''; if(st==='P') present++; if(st==='L') leave++; if(st==='C') comp++; if(st==='H'||st==='ST'||st==='SU') hol++; }
+      const workingDays=Math.max(0,total-hol); const attendancePercent=workingDays>0?(present/workingDays)*100:0;
+      rows.push(['Total Days in Month', total]); rows.push(['Total Present', present]); rows.push(['Total Leave', leave]); rows.push(['Total Comp-off', comp]); rows.push(['Total Holiday', hol]); rows.push(['Working Days', workingDays]); rows.push(['Attendance %', `${attendancePercent.toFixed(1)}%`]); rows.push([]);
+      rows.push(['Date','Day','Status']);
+      for(let d=1; d<=total; d++){ const st=state.statusMap[isoDate(y,m,d)]||''; rows.push([formatMDY(y,m,d), formatDayName(y,m,d), st]); }
+      const csv = rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\r\n');
+      const blob = new Blob(["\uFEFF", csv], { type:'text/csv;charset=utf-8;' }); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`${state.name.replace(/\s+/g,'_')}_${monthNames[m]}_${y}.csv`; a.click(); URL.revokeObjectURL(url);
+    }
+
+    function exportExcelSimple(){
+      if(typeof XLSX==='undefined'){ alert('SheetJS not loaded'); return; }
+      const y=state.year,m=state.monthIndex,total=daysInMonth(y,m);
+      const data=[]; data.push(['Company Name', state.company]); data.push(['Employee Name', state.name]); data.push(['Employee ID', state.empId]); data.push(['Month', `${monthNames[m]} ${y}`]); data.push([]);
+      data.push(['Date','Day','Status']);
+      for(let d=1; d<=total; d++){ data.push([formatMDY(y,m,d), formatDayName(y,m,d), state.statusMap[isoDate(y,m,d)]||'']); }
+      const ws=XLSX.utils.aoa_to_sheet(data); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Attendance'); XLSX.writeFile(wb, `${state.name.replace(/\s+/g,'_')}_${monthNames[m]}_${y}.xlsx`);
+    }
+
+    // mark weekends as holiday
+    function markWeekendsAsHoliday(){
+      const y=state.year,m=state.monthIndex,total=daysInMonth(y,m);
+      for(let d=1; d<=total; d++){ const dow=new Date(y,m,d).getDay(); if(dow===6) state.statusMap[isoDate(y,m,d)]='ST'; if(dow===0) state.statusMap[isoDate(y,m,d)]='SU'; }
+      renderCalendar();
+    }
+    function clearMonth(){ const y=state.year,m=state.monthIndex; Object.keys(state.statusMap).forEach(k=>{ const dt=new Date(k); if(dt.getFullYear()===y && dt.getMonth()===m) delete state.statusMap[k]; }); renderCalendar(); }
+
+    // small send modal (download only)
+    function createSendModal(){
+      if(document.getElementById('sendModal')) return;
+      const modal=document.createElement('div'); modal.id='sendModal'; modal.style.position='fixed'; modal.style.inset='0'; modal.style.display='flex'; modal.style.alignItems='center'; modal.style.justifyContent='center'; modal.style.zIndex='1400'; modal.style.background='rgba(6,11,15,0.4)';
+      modal.innerHTML = `<div style="background:#fff;border-radius:12px;padding:18px;max-width:720px;width:100%"><div style="display:flex;justify-content:space-between"><div style="font-weight:700">Send Timesheet</div><button id="closeModal">✕</button></div><div style="margin-top:10px"><button id="modalDownload">Download Only</button></div></div>`;
+      document.body.appendChild(modal);
+      modal.querySelector('#closeModal').addEventListener('click',()=>modal.remove());
+      modal.querySelector('#modalDownload').addEventListener('click',()=>{
+        const blob = (function(){ // create simple workbook blob
+          const payload=[]; payload.push(['Company', state.company]); payload.push([]);
+          payload.push(['Date','Day','Status']); const y=state.year,m=state.monthIndex,total=daysInMonth(y,m);
+          for(let d=1; d<=total; d++) payload.push([formatMDY(y,m,d), formatDayName(y,m,d), state.statusMap[isoDate(y,m,d)]||'']);
+          const ws = XLSX.utils.aoa_to_sheet(payload); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Attendance'); const wbout = XLSX.write(wb, { bookType:'xlsx', type:'array' }); return new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        })();
+        const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`${state.name.replace(/\s+/g,'_')}_${monthNames[state.monthIndex]}_${state.year}.xlsx`; a.click(); URL.revokeObjectURL(url);
+        modal.remove();
+      });
+    }
+
+    // event wiring
+    if(selectMonth) selectMonth.addEventListener('change', ()=>{ state.monthIndex = Number(selectMonth.value); renderHeading(); renderCalendar(); });
+    if(selectYear) selectYear.addEventListener('change', ()=>{ state.year = Number(selectYear.value); renderHeading(); renderCalendar(); });
+    if(inputName) inputName.addEventListener('input', ()=>{ state.name = inputName.value||'Unnamed'; renderHeading(); });
+    if(inputCompany) inputCompany.addEventListener('input', ()=>{ state.company = inputCompany.value||''; renderHeading(); });
+    if(inputEmpId) inputEmpId.addEventListener('input', ()=>{ state.empId = inputEmpId.value||''; renderHeading(); });
+
+    if(btnExport) btnExport.addEventListener('click', ()=>{ try{ exportExcelSimple(); }catch(e){ alert('Excel export failed: '+e.message); } });
+    if(btnExportCSV) btnExportCSV.addEventListener('click', exportCSV);
+    if(btnMarkWeekends) btnMarkWeekends.addEventListener('click', markWeekendsAsHoliday);
+    if(btnClearMonth) btnClearMonth.addEventListener('click', ()=>{ if(confirm('Clear statuses for this month?')) clearMonth(); });
+    if(btnSendTop) btnSendTop.addEventListener('click', createSendModal);
+    if(fileTemplate) fileTemplate.addEventListener('change', (e)=>{ const f=e.target.files[0]; if(f) alert('Template uploaded to server not implemented in single-file demo.'); e.target.value='';});
+
+    if(btnPrevMonth) btnPrevMonth.addEventListener('click', ()=>{ state.monthIndex=(state.monthIndex+11)%12; if(state.monthIndex===11) state.year--; renderHeading(); renderCalendar(); selectMonth.value=state.monthIndex; selectYear.value=state.year; });
+    if(btnNextMonth) btnNextMonth.addEventListener('click', ()=>{ state.monthIndex=(state.monthIndex+1)%12; if(state.monthIndex===0) state.year++; renderHeading(); renderCalendar(); selectMonth.value=state.monthIndex; selectYear.value=state.year; });
+    if(btnToggleWeekendColor) btnToggleWeekendColor.addEventListener('click', ()=>{ state.showWeekendColors=!state.showWeekendColors; renderCalendar(); });
+
+    // initial render
+    renderHeading(); renderCalendar();
+
+    // debug helpers
+    window.__timesheetState = state;
+    window.__renderCalendar = renderCalendar;
+  })();
+  </script>
+</body>
+</html>
