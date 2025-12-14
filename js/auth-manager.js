@@ -23,7 +23,7 @@ export function initAuthListener(onUserLoaded) {
                 const profile = snap.data();
 
                 // Security check on every load
-                if (profile.isBlocked) {
+                if (profile.accountStatus && profile.accountStatus !== 'active') {
                     console.warn("User is blocked. Signing out.");
                     await signOut(auth);
                     // trigger callback as null? or handle block UI?

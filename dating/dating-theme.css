@@ -1066,6 +1066,12 @@ body {
     color: var(--text-main);
 }
 
+/* Ensure Dark Mode Dropdown Contrast */
+.form-select option {
+    background-color: var(--bg-space);
+    color: white;
+}
+
 [data-theme="light"] .form-input::placeholder,
 [data-theme="light"] .form-textarea::placeholder {
     color: #94a3b8;
@@ -1256,4 +1262,51 @@ input[type=range]::-webkit-slider-runnable-track {
 
 [data-theme="light"] input[type=range]::-webkit-slider-runnable-track {
     background: #e2e8f0;
+}
+
+/* --- Styled Search Dropdowns --- */
+.search-select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--btn-ghost-border);
+    border-radius: var(--radius-md);
+    padding: 0.8rem 1rem;
+    color: var(--text-main);
+    font-size: 0.95rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 1rem center;
+}
+
+.search-select:hover {
+    border-color: var(--neon-cyan);
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+.search-select:focus {
+    outline: none;
+    border-color: var(--neon-cyan);
+    box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.15);
+}
+
+.search-select option {
+    background-color: var(--bg-space);
+    color: white;
+    padding: 10px;
+}
+
+[data-theme="light"] .search-select {
+    background-color: white;
+    border-color: #cbd5e1;
+    color: var(--text-main);
+}
+
+[data-theme="light"] .search-select option {
+    background-color: white;
+    color: var(--text-main);
 }

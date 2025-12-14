@@ -23,10 +23,10 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
 // Static files
-app.use('/', express.static(path.join(__dirname, '..')));
-app.use('/timesheet', express.static(path.join(__dirname, '..', 'timesheet')));
+app.use('/', express.static(path.join(__dirname, '..'), { extensions: ['html'] }));
+app.use('/timesheet', express.static(path.join(__dirname, '..', 'timesheet'), { extensions: ['html'] }));
 app.use('/template', express.static(path.join(__dirname, 'public', 'template')));
-app.use('/dating', express.static(path.join(__dirname, '..', 'dating')));
+app.use('/dating', express.static(path.join(__dirname, '..', 'dating'), { extensions: ['html'] }));
 
 // Config
 const TEMPLATE_DIR = path.join(__dirname, 'templates');

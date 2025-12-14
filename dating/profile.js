@@ -16,8 +16,14 @@ const els = {
   age: el('age'),
   gender: el('gender'),
   location: el('location'),
+  nationality: el('nationality'), // NEW
+  state: el('state'), // NEW
+  city: el('city'), // NEW
+  pincode: el('pincode'), // NEW
   profession: el('profession'),
-  income: el('income'), // NEW
+  income: el('income'),
+  height: el('height'), // NEW
+  religion: el('religion'), // NEW
   maritalStatus: el('maritalStatus'),
   interests: el('interests'),
   bio: el('bio'),
@@ -29,7 +35,7 @@ const els = {
   addUrlBtn: el('addUrlBtn'),
   saveBtn: el('saveProfile'),
   status: el('profile-status'),
-  saveStatus: el('save-status') // NEW
+  saveStatus: el('save-status')
 };
 
 let currentUser = null;
@@ -81,8 +87,28 @@ function populateForm(data) {
   if (els.age) els.age.value = data.age || '';
   if (els.gender) els.gender.value = data.gender || '';
   if (els.location) els.location.value = data.location || '';
+
+  // New Location Fields
+  if (els.nationality) {
+    els.nationality.value = data.nationality || '';
+    // Trigger change to populate state
+    els.nationality.dispatchEvent(new Event('change'));
+
+    if (data.state && els.state) {
+      els.state.value = data.state;
+      // Trigger change to populate city
+      els.state.dispatchEvent(new Event('change'));
+
+      if (data.city && els.city) {
+        els.city.value = data.city;
+      }
+    }
+  }
+  if (els.pincode) els.pincode.value = data.pincode || '';
   if (els.profession) els.profession.value = data.profession || '';
-  if (els.income) els.income.value = data.income || ''; // NEW
+  if (els.income) els.income.value = data.income || '';
+  if (els.height) els.height.value = data.height || ''; // NEW
+  if (els.religion) els.religion.value = data.religion || ''; // NEW
   if (els.maritalStatus) els.maritalStatus.value = data.maritalStatus || '';
   if (els.interests) els.interests.value = (data.interests || []).join(', ');
   if (els.bio) els.bio.value = data.bio || '';
@@ -193,8 +219,27 @@ async function handleFileUpload(file) {
 
     // Save
     await saveProfile(true);
+
+    // 3. Update Profile Avatar Instantly (DOM)
+    const navImg = document.getElementById('nav-avatar-img');
+    const navWrap = document.getElementById('nav-avatar-photo');
+    const navInit = document.getElementById('nav-avatar-initial');
+
+    // Only update if this is the first photo (which becomes the main avatar)
+    if (navImg && navWrap && navInit && currentPhotos.length === 1) {
+      navImg.src = url;
+      navWrap.style.display = ''; // visible
+      navInit.style.display = 'none'; // hidden
+    } else if (navImg && currentPhotos.length > 1) {
+      // If we already have photos, maybe we don't force update avatar to the *new* one unless logic changes.
+      // But user request says "Replace initial-letter avatar with uploaded image". 
+      // This implies the case where it was initial-letter (0 photos).
+      // If user wants NEW photo to always be avatar, we'd need to reorder array. 
+      // For now, we assume the "no photo exists" case.
+    }
+
     setStatus("Active");
-    showToast("Photo uploaded successfully!");
+    showToast("Profile photo updated successfully");
   } catch (e) {
     console.error("Upload error details:", e);
     setStatus("Upload failed", true);
@@ -215,7 +260,9 @@ async function saveProfile(silent = false) {
     gender: els.gender.value,
     location: els.location.value.trim(),
     profession: els.profession.value.trim(),
-    income: els.income.value, // NEW
+    income: els.income.value,
+    height: els.height.value ? Number(els.height.value) : null, // NEW
+    religion: els.religion.value, // NEW
     maritalStatus: els.maritalStatus.value,
     interests,
     bio: els.bio.value.trim(),
@@ -224,25 +271,134 @@ async function saveProfile(silent = false) {
     // Legacy support (use first photo as main avatar)
     photoURL: currentPhotos.length > 0 ? currentPhotos[0].url : null,
     uid: currentUser.uid,
+    // Location Fields
+    nationality: els.nationality.value,
+    state: els.state.value,
+    city: els.city.value,
+    pincode: els.pincode.value,
+
+    // Normalized fields for search
+    gender_normalized: (els.gender.value || '').toLowerCase(),
+    religion_normalized: (els.religion.value || '').toLowerCase(),
+    city_normalized: els.city.value.trim().toLowerCase(), // Use specific city field
+    displayNameLower: els.displayName.value.trim().toLowerCase(), // Derived field for search
     updatedAt: serverTimestamp()
   };
 
   try {
-    if (currentProfileDocId) {
-      await updateDoc(doc(db, 'datingProfiles', currentProfileDocId), data);
-    } else {
-      const ref = doc(db, 'datingProfiles', currentUser.uid);
-      await setDoc(ref, { createdAt: serverTimestamp(), ...data }, { merge: true });
-      currentProfileDocId = currentUser.uid;
-    }
+    if (!currentUser || !currentUser.uid) throw new Error("No user ID found for save");
+
+    // ALWAYS use setDoc with merge:true to handle both Create and Update in one go
+    // This ensures we write to the canonical 'datingProfiles' collection
+    const ref = doc(db, 'datingProfiles', currentUser.uid);
+
+    // Merge data. createdAt is only set if it doesn't exist (handled by merge? No, merge overwrites. 
+    // But we are passing createdAt: serverTimestamp() every time here. 
+    // Ideally we only set createdAt on creation. 
+    // However, existing logic passed it. Let's keep it simple: setDoc with merge updates fields.
+
+    await setDoc(ref, data, { merge: true });
+    currentProfileDocId = currentUser.uid;
+
     if (!silent) {
       setStatus("Ready");
       showToast("Profile saved successfully!");
     }
   } catch (e) {
-    console.error(e);
+    console.error("Profile save failed:", e);
     setStatus("Error", true);
     if (!silent) showToast("Failed to save profile.", 'error');
+  }
+}
+
+// --- Location Data & Logic ---
+import { indianLocations } from './india-locations.js';
+
+const locationData = {
+  India: indianLocations,
+  USA: {
+    California: ["Los Angeles", "San Francisco", "San Diego"],
+    NewYork: ["New York City", "Buffalo"],
+    Texas: ["Houston", "Austin", "Dallas"]
+  },
+  UAE: {
+    Dubai: ["Dubai"],
+    AbuDhabi: ["Abu Dhabi"],
+    Sharjah: ["Sharjah"]
+  },
+  UK: {
+    London: ["London"],
+    Manchester: ["Manchester"]
+  },
+  Canada: {
+    Ontario: ["Toronto", "Ottawa"],
+    BC: ["Vancouver", "Victoria"]
+  },
+  Australia: {
+    NSW: ["Sydney"],
+    Victoria: ["Melbourne"]
+  }
+};
+
+function initLocationDropdowns() {
+  const natSelect = els.nationality;
+  const stateSelect = els.state;
+  const citySelect = els.city;
+
+  if (!natSelect || !stateSelect || !citySelect) return;
+
+  // 1. Nationality Change
+  natSelect.addEventListener('change', () => {
+    const nat = natSelect.value;
+    stateSelect.innerHTML = '<option value="">Select State</option>';
+    citySelect.innerHTML = '<option value="">Select City</option>';
+    citySelect.disabled = true;
+
+    if (nat && locationData[nat]) {
+      stateSelect.disabled = false;
+      Object.keys(locationData[nat]).forEach(st => {
+        const opt = document.createElement('option');
+        opt.value = st;
+        opt.textContent = st.replace(/([A-Z])/g, ' $1').trim(); // Space out CamelCase if needed
+        stateSelect.appendChild(opt);
+      });
+    } else {
+      stateSelect.disabled = true;
+    }
+    // Auto-update hidden location field
+    updateCombinedLocation();
+  });
+
+  // 2. State Change
+  stateSelect.addEventListener('change', () => {
+    const nat = natSelect.value;
+    const st = stateSelect.value;
+    citySelect.innerHTML = '<option value="">Select City</option>';
+
+    if (nat && st && locationData[nat][st]) {
+      citySelect.disabled = false;
+      locationData[nat][st].forEach(ct => {
+        const opt = document.createElement('option');
+        opt.value = ct;
+        opt.textContent = ct;
+        citySelect.appendChild(opt);
+      });
+    } else {
+      citySelect.disabled = true;
+    }
+    updateCombinedLocation();
+  });
+
+  // 3. City Change
+  citySelect.addEventListener('change', updateCombinedLocation);
+}
+
+function updateCombinedLocation() {
+  const city = els.city.value;
+  // Fallback: if city selected, use it. Else state, else nationality.
+  // Main location field used for simple display/search
+  if (els.location) {
+    els.location.value = city || els.state.value || els.nationality.value || '';
   }
 }
 
@@ -262,6 +418,9 @@ if (els.addUrlBtn) els.addUrlBtn.addEventListener('click', async () => {
 });
 
 if (els.saveBtn) els.saveBtn.addEventListener('click', () => saveProfile(false));
+
+// Init Dropdowns
+initLocationDropdowns();
 
 // Auth Init
 onAuthStateChanged(auth, async user => {

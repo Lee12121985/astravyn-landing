@@ -1,6 +1,8 @@
 // dating/app.js
 // Frontend renderer for Firestore dating profiles
-import { fetchProfilesOnce, listenProfilesRealtime, updateUserSettings, getUserSettings, addConnection, checkConnectionStatus } from "./firebase-helpers.js";
+// dating/app.js
+// Frontend renderer for Firestore dating profiles
+import { fetchProfilesOnce, listenProfilesRealtime, updateUserSettings, getUserSettings, sendLike, checkInteractionStatus, fetchLikedProfiles, fetchConnectedProfiles } from "./firebase-helpers.js";
 import { auth, db } from '../js/firebase-config.js';
 import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
 
@@ -116,17 +118,26 @@ function makeInteractive(container) {
 
       try {
         if (action === 'connect') {
-          // Check if already connected logic could go here
-          await addConnection(auth.currentUser.uid, targetId, 'connect');
+          // Connect Request
+          const result = await sendLike(auth.currentUser.uid, targetId, 'connect_request');
           btn.textContent = 'Sent';
           btn.disabled = true;
-          showToast("Connection request sent!");
+          if (result.isMatch) {
+            showToast("It's a Match! You can now chat.", "success");
+          } else {
+            showToast("Connection request sent!");
+          }
+
         } else if (action === 'shortlist') {
           // Like logic
-          await addConnection(auth.currentUser.uid, targetId, 'like');
+          const result = await sendLike(auth.currentUser.uid, targetId, 'like');
           btn.textContent = 'Liked';
           btn.disabled = true;
-          showToast("Profile liked!");
+          if (result.isMatch) {
+            showToast("It's a Match!", "success");
+          } else {
+            showToast("Profile liked!");
+          }
         }
       } catch (err) {
         console.error("Action error", err);
@@ -143,7 +154,7 @@ window.showProfileDetails = async function (id) {
 
   // Show loading state if needed, or fetch data
   // For simplicity, we might need to fetch the doc if we don't have it in memory.
-  // Ideally, 'profiles' array should be accessible, but we can fetch single doc.
+  // Ideally, 'datingProfiles' array should be accessible, but we can fetch single doc.
 
   // Basic placeholders
   document.getElementById('modal-name').textContent = "Loading...";
@@ -232,15 +243,39 @@ function initSearchPage(container) {
   }
 
   if (btn) {
+    // Reset Logic
+    const resetBtn = document.getElementById('btn-reset-filters');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        // Reset Inputs
+        if (ageSlider) { ageSlider.value = 24; ageDisplay.textContent = "24 - 60"; }
+        if (locSelect) locSelect.value = "any";
+        document.getElementById('search-name').value = "";
+        document.getElementById('search-community').value = "any";
+        document.getElementById('search-education').value = "any";
+        document.getElementById('search-profession').value = "any";
+
+        showToast("Filters reset");
+      });
+    }
+
     btn.addEventListener('click', async () => {
       const minAge = ageSlider ? ageSlider.value : 18;
       const location = locSelect ? locSelect.value : 'any';
+      const name = document.getElementById('search-name').value.trim();
+      const community = document.getElementById('search-community').value;
+      const education = document.getElementById('search-education').value;
+      const profession = document.getElementById('search-profession').value;
 
       container.innerHTML = '<div style="color:var(--text-muted); text-align:center; grid-column:1/-1;">Searching...</div>';
 
       const filters = {};
       if (minAge) filters.minAge = minAge;
       if (location !== 'any') filters.location = location;
+      if (name) filters.name = name;
+      if (community !== 'any') filters.community = community;
+      if (education !== 'any') filters.education = education;
+      if (profession !== 'any') filters.profession = profession;
 
       const results = await fetchProfilesOnce({ limitCount: 20, filters });
       renderProfiles(container, results);
@@ -278,14 +313,65 @@ function initMatchesPage(container) {
   });
 }
 
-function setHeroStatsFromProfiles(profiles) {
+function setHeroStatsFromProfiles(datingProfiles) {
   const elMatches = document.getElementById('stat-matches');
   const elVerified = document.getElementById('stat-verified');
   const elNew = document.getElementById('stat-new');
 
-  if (elMatches) elMatches.textContent = profiles.length + "+";
-  if (elVerified) elVerified.textContent = Math.floor(profiles.length * 0.8) + "+";
-  if (elNew) elNew.textContent = Math.floor(profiles.length * 0.3) + "+";
+  if (elMatches) elMatches.textContent = datingProfiles.length + "+";
+  if (elVerified) elVerified.textContent = Math.floor(datingProfiles.length * 0.8) + "+";
+  if (elNew) elNew.textContent = Math.floor(datingProfiles.length * 0.3) + "+";
+}
+
+// Settings Page Logic
+function initSettingsPage() {
+  const toggles = [
+    { id: 'st-match-notif', key: 'notifications.match' },
+    { id: 'st-msg-notif', key: 'notifications.message' },
+    { id: 'st-view-notif', key: 'notifications.view' },
+    { id: 'st-show-name', key: 'privacy.showFullName' },
+    { id: 'st-screen-prot', key: 'privacy.screenshotProtection' }
+  ];
+
+  onAuthStateChanged(auth, async user => {
+    if (!user) return;
+
+    // Load Settings
+    const settings = await getUserSettings(user.uid);
+
+    toggles.forEach(t => {
+      const el = document.getElementById(t.id);
+      if (el) {
+        // Resolve nested key safely
+        const keys = t.key.split('.');
+        const val = keys.length === 2
+          ? (settings[keys[0]] && settings[keys[0]][keys[1]])
+          : settings[t.key];
+
+        el.checked = !!val; // default to false if undefined, or true?
+        // UI Defaults:
+        if (settings[keys[0]] === undefined && (t.id === 'st-match-notif' || t.id === 'st-msg-notif')) {
+          el.checked = true; // Default ON
+        }
+
+        // Listener
+        el.addEventListener('change', async () => {
+          // Construct updates
+          const updates = {};
+          // We need to be careful not to overwrite entire objects if we use setDoc merge, 
+          // but Firestore merge is shallow on top level maps usually unless using dot notation
+          // Helper uses setDoc with merge.
+          // Let's re-read current state to be safe or use dot notation update if helper supported it.
+          // Helper uses setDoc({settings}, {merge:true}). Ideally pass { "notifications.match": true }
+
+          updates[t.key] = el.checked;
+
+          await updateUserSettings(user.uid, updates);
+          showToast("Settings saved");
+        });
+      }
+    });
+  });
 }
 
 
@@ -427,5 +513,25 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (container) initMatchesPage(container);
   } else if (page === 'search') {
     if (container) initSearchPage(container);
+  } else if (page === 'likes') {
+    if (container) {
+      onAuthStateChanged(auth, async user => {
+        if (user) {
+          const profiles = await fetchLikedProfiles(user.uid);
+          renderProfiles(container, profiles);
+        }
+      });
+    }
+  } else if (page === 'connects') {
+    if (container) {
+      onAuthStateChanged(auth, async user => {
+        if (user) {
+          const profiles = await fetchConnectedProfiles(user.uid);
+          renderProfiles(container, profiles);
+        }
+      });
+    }
+  } else if (page === 'settings') {
+    initSettingsPage();
   }
 });

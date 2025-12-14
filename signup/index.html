@@ -261,19 +261,20 @@
         // 3. Create Firestore Document
         const role = (email === "admin@astravyn.com") ? "admin" : "user";
         try {
-          // Add to 'users' collection
+          // Add to 'users' collection (Private Account Data)
           await setDoc(doc(db, "users", user.uid), {
             uid: user.uid,
             email: user.email,
             role: role,
-            isBlocked: false,
+            accountStatus: 'active', // 'active', 'suspended', 'deleted'
+            isPremium: false,
+            profileId: user.uid,
             createdAt: serverTimestamp(),
-            displayName: name,
-            photoURL: photoURL,
             lastLogin: serverTimestamp()
+            // Removed displayName/photoURL to keep this collection private/lean
           });
 
-          // Also Create/Update 'datingProfiles' for instant access
+          // Create 'profiles' document (Public Searchable Data)
           try {
             const photoEntry = photoURL ? [{
               url: photoURL,
@@ -282,19 +283,32 @@
             }] : [];
 
             await setDoc(doc(db, "datingProfiles", user.uid), {
-              id: user.uid,
+              userId: user.uid,
               displayName: name,
               photoURL: photoURL,
-              email: user.email,
-              location: "Unknown", // Default
-              age: "",
+              // Basic Info Defaults
+              gender: null, // "male", "female", "other"
+              dob: null,
+              age: null,
+              height: null,
+              // Location Defaults
+              city: "Unknown",
+              country: "Unknown",
+              // Details Defaults
+              religion: null,
               profession: "",
+              incomeRange: null,
+              maritalStatus: "single",
+              // Meta
               bio: "New to Astravyn.",
               interests: [],
-              photos: photoEntry
+              gallery: photoEntry, // Renamed from photos to match schema or keep consistent? Schema said 'gallery'.
+              completeness: 20,
+              visibility: 'public', // 'public', 'private'
+              createdAt: serverTimestamp()
             }, { merge: true });
 
-          } catch (dpErr) { console.warn("Dating profile sync error", dpErr); }
+          } catch (dpErr) { console.warn("Profile creation error", dpErr); }
 
         } catch (dbError) {
           console.error("Error creating user document:", dbError);
