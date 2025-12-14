@@ -242,6 +242,15 @@ function initSearchPage(container) {
     });
   }
 
+  // Height Slider UI
+  const heightSlider = document.getElementById('search-height-slider');
+  const heightDisplay = document.getElementById('height-display');
+  if (heightSlider && heightDisplay) {
+    heightSlider.addEventListener('input', (e) => {
+      heightDisplay.textContent = `${e.target.value} cm`;
+    });
+  }
+
   if (btn) {
     // Reset Logic
     const resetBtn = document.getElementById('btn-reset-filters');
@@ -249,6 +258,7 @@ function initSearchPage(container) {
       resetBtn.addEventListener('click', () => {
         // Reset Inputs
         if (ageSlider) { ageSlider.value = 24; ageDisplay.textContent = "24 - 60"; }
+        if (heightSlider) { heightSlider.value = 160; heightDisplay.textContent = "160 cm"; }
         if (locSelect) locSelect.value = "any";
         document.getElementById('search-name').value = "";
         document.getElementById('search-community').value = "any";

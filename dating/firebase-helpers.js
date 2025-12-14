@@ -45,8 +45,16 @@ export async function fetchProfilesOnce({ limitCount = 24, filters = {} } = {}) 
   // Name Prefix Search
   // Requires 'displayNameLower' field for case-insensitive partial match
   if (filters.name && filters.name.length > 0) {
-    const term = filters.name.toLowerCase();
-    q = query(q, orderBy('displayNameLower'), startAt(term), endAt(term + '\uf8ff'));
+    // Firestore prefix search expects a normalized indexed field (displayNameLower).
+    // Some datasets may not have that field, so we still attempt a prefix query when possible
+    // but we will always apply a safe client-side, case-insensitive partial match below
+    // const term = (filters.name || '').trim().toLowerCase();
+    // try {
+    //   q = query(q, orderBy('displayNameLower'), startAt(term), endAt(term + '\uf8ff'));
+    // } catch (err) {
+    //   // If ordering/indexing fails, fall back to fetching and client-side filtering
+    //   console.warn('Prefix query for name failed, will apply client-side filtering', err);
+    // }
   }
 
   // Order by update time
@@ -63,6 +71,14 @@ export async function fetchProfilesOnce({ limitCount = 24, filters = {} } = {}) 
   }
   if (filters.maxAge) {
     results = results.filter(p => (p.age || 0) <= Number(filters.maxAge));
+  }
+
+  // Client-side name filtering (case-insensitive, partial match)
+  if (filters.name && filters.name.length > 0) {
+    const term = (filters.name || '').trim().toLowerCase();
+    if (term.length > 0) {
+      results = results.filter(p => ((p.displayName || '') + '').toLowerCase().includes(term));
+    }
   }
 
   if (filters.isNew) {
