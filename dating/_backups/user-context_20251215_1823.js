@@ -4,7 +4,7 @@ import { auth, db } from '../js/firebase-config.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
 import { collection, query, where, getDocs, doc, getDoc } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
 
-const safe = id => document.getElementById(id);
+const el = id => document.getElementById(id);
 
 // helper: find profile by uid (tries doc id == uid first, then uid field)
 async function findProfileForUid(uid) {
@@ -29,18 +29,19 @@ async function findProfileForUid(uid) {
 }
 
 function setNavUser(displayName, photoURL, gender) {
-  const avatarImgWrap = safe('nav-avatar-photo');
-  const avatarImg = safe('nav-avatar-img');
-  const avatarInitial = safe('nav-avatar-initial');
-  const nameEl = safe('nav-avatar-name');
+  const avatarImgWrap = el('nav-avatar-photo');
+  const avatarImg = el('nav-avatar-img');
+  const avatarInitial = el('nav-avatar-initial');
+  const nameEl = el('nav-avatar-name');
 
-  if (photoURL && avatarImg) {
+  if (photoURL) {
     avatarImg.src = photoURL;
-    if (avatarImgWrap) avatarImgWrap.style.display = '';
-    if (avatarInitial) avatarInitial.style.display = 'none';
-  } else if (avatarInitial) {
-    if (avatarImgWrap) avatarImgWrap.style.display = 'none';
+    avatarImgWrap.style.display = '';
+    avatarInitial.style.display = 'none';
+  } else {
+    avatarImgWrap.style.display = 'none';
     avatarInitial.style.display = '';
+    avatarInitial.innerHTML = (displayName || 'U').charAt(0).toUpperCase(); /* use innerHTML for safety or textContent */
     avatarInitial.textContent = (displayName || 'U').charAt(0).toUpperCase();
 
     // Remove old inline background
@@ -52,11 +53,14 @@ function setNavUser(displayName, photoURL, gender) {
     else avatarInitial.classList.add('avatar-default');
   }
 
-  if (nameEl) nameEl.textContent = displayName || 'You';
+  nameEl.textContent = displayName || 'You';
 }
 
 // subscribe to auth changes
 onAuthStateChanged(auth, async user => {
+  const initial = el('nav-avatar-initial');
+  const nameEl = el('nav-avatar-name');
+
   if (!user) {
     // Loop protection: check if we just came from login
     const lastRedirect = sessionStorage.getItem('redirect_to_login');

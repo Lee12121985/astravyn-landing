@@ -659,15 +659,12 @@ body {
     bottom: 0;
     left: 0;
     width: 100%;
-    /* Gradient removed as requested */
-    background: transparent;
-    padding: 1.5rem;
-    /* Adjusted padding since gradient is gone */
+    background: linear-gradient(to top, #020615 20%, rgba(2, 6, 21, 0.8) 60%, transparent);
+    padding: 4rem 1.5rem 1.5rem;
 }
 
 [data-theme="light"] .profile-info-overlay {
-    /* Gradient removed */
-    background: transparent;
+    background: linear-gradient(to top, #0f172a 30%, rgba(15, 23, 42, 0.95) 75%, transparent);
 }
 
 .profile-name {
@@ -711,64 +708,6 @@ body {
     text-overflow: ellipsis;
     display: block;
     max-width: 100%;
-}
-
-/* --- Profile Card Actions (New Request) --- */
-.profile-actions .btn {
-    background: rgba(0, 0, 0, 0.4);
-    /* Semi-transparent base for better visibility */
-    border: 1px solid rgba(255, 255, 255, 0.4);
-    backdrop-filter: blur(4px);
-    color: white !important;
-    /* Force white text */
-    padding: 6px 0 !important;
-    /* Reduced padding/size */
-    font-size: 0.8rem !important;
-    /* Reduced font size */
-    transition: all 0.2s ease;
-    box-shadow: none;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    font-weight: 700;
-}
-
-/* Connect Button Specifics */
-.profile-actions .btn-primary {
-    background: rgba(0, 0, 0, 0.4);
-    border-color: rgba(6, 182, 212, 0.6);
-    /* Cyanish border initially */
-}
-
-/* Like Button Specifics */
-.profile-actions .btn-ghost {
-    background: rgba(0, 0, 0, 0.4);
-}
-
-/* Hover Effects */
-.profile-actions .btn-primary:hover {
-    background: #10b981 !important;
-    /* Green tick color */
-    border-color: #10b981 !important;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
-}
-
-.profile-actions .btn-ghost:hover {
-    background: #ec4899 !important;
-    /* Pink like color */
-    border-color: #ec4899 !important;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(236, 72, 153, 0.4);
-    color: white !important;
-}
-
-/* Adjust Visibility for Light/Dark mode since gradient is gone */
-/* Add a subtle text shadow to all text over images to ensure readability */
-.profile-info-overlay .profile-name,
-.profile-info-overlay .profile-meta,
-.profile-info-overlay .tag {
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8) !important;
-    /* Stronger shadow */
 }
 
 /* --- Modal --- */
@@ -1421,106 +1360,20 @@ input[type=range]::-webkit-slider-runnable-track {
     box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.1);
 }
 
-/* --- Search Grid Layout --- */
-.search-grid-layout {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 1.5rem;
-    align-items: start;
-    margin-bottom: 2rem;
-}
-
-.span-full {
-    grid-column: 1 / -1;
-}
-
-.span-2-cols {
-    grid-column: span 2;
-}
-
-@media (max-width: 900px) {
-    .search-grid-layout {
-        grid-template-columns: 1fr;
-    }
-
-    .span-2-cols {
-        grid-column: auto;
-    }
-}
-
-/* Missing Filter Label Class */
-.filter-label {
-    display: block;
-    font-size: 0.9rem;
-    font-weight: 600;
-    margin-bottom: 0.5rem;
-    color: var(--text-muted);
-    /* Grey in dark mode */
-}
-
-/* Ensure strong visibility in Light Mode */
-[data-theme="light"] .filter-label {
-    color: var(--text-main);
-    /* Dark in light mode */
-}
-
-/* Harden Card Soft for Contrast */
-.card-soft {
-    background: rgba(5, 11, 20, 0.4);
-    /* Darker glass in Neon */
-    border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-[data-theme="light"] .card-soft {
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-}
-
-/* Fix Community Input if it was specific */
-/* The select uses .search-select which we verified is styled correctly. */
-
-/* Fix Filter Panel Background separate from Card Soft */
-.filter-panel {
-    background: var(--card-glass);
-    /* Dark in Neon */
-    border: var(--neon-border);
-    border-radius: var(--radius-lg);
-    padding: 1.5rem;
-    box-shadow: var(--neon-glow);
-}
-
-[data-theme="light"] .filter-panel {
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
-}
-
-/* Fix Input Text Colors explicitly */
-.premium-input,
-.search-select {
-    color: white !important;
-    background-color: rgba(255, 255, 255, 0.05);
-}
-
-[data-theme="light"] .premium-input,
-[data-theme="light"] .search-select {
-    color: var(--text-main) !important;
-    background-color: #f8fafc !important;
-    border-color: #cbd5e1;
-}
-
 [data-theme="light"] .premium-input::placeholder {
-    color: #94a3b8 !important;
+    color: #94a3b8;
 }
 
-/* Fix Range Slider text in Light Mode */
-[data-theme="light"] #age-display,
-[data-theme="light"] #height-display {
-    color: var(--neon-cyan) !important;
-    font-weight: 700;
+/* Improve hero profile name contrast in dark/neon theme without changing layout */
+[data-theme="neon"] .hero-card .hero-title {
+    color: #e6fbff;
+    /* soft cyan-white for better legibility */
+    -webkit-text-fill-color: initial;
+    background: none !important;
+    /* ensure solid color instead of clipped gradient for clarity */
+    text-shadow: 0 6px 20px rgba(6, 182, 212, 0.06);
+    /* subtle glow matching neon palette */
 }
-
 
 /* =========================================
    UI/UX Overflow Fixes (Antigravity)
@@ -1562,12 +1415,11 @@ input[type=range]::-webkit-slider-runnable-track {
     white-space: nowrap;
     flex-shrink: 0;
 }
-
 /* === Force remove gradients in LIGHT THEME for profile cards === */
 [data-theme="light"] .profile-card,
 [data-theme="light"] .profile-card::before,
 [data-theme="light"] .profile-card::after {
-    background: transparent !important;
-    background-image: none !important;
-    content: none !important;
+  background: transparent !important;
+  background-image: none !important;
+  content: none !important;
 }

@@ -5,14 +5,13 @@
   <meta charset="UTF-8" />
   <title>Astravyn Dating – Home</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="/dating/style.css" />
   <link rel="stylesheet" href="/dating/dating-theme.css" />
   <meta name="description"
     content="Astravyn Match - Premium dating and matrimony app for finding serious connections. Verified profiles, community focus, and safe environment." />
   <meta name="keywords"
     content="dating, matrimony, matchmaking, serious relationships, verified profiles, kerala dating" />
-  <script type="module" src="/dating/user-context.js"></script>
-  <script type="module" src="/dating/app.js"></script>
-  <script type="module" src="/dating/home.js"></script>
+
 </head>
 
 <body data-page="home">
@@ -52,10 +51,11 @@
         <!-- Hero -->
         <section class="card card-soft hero-card">
           <!-- Self Profile Container (injected by home.js) -->
-          <div id="self-profile-container" style="display:none; gap:1.5rem; align-items:center; margin-bottom:1rem;">
+          <div id="self-profile-container"
+            style="display:none; gap:1.5rem; align-items:center; margin-bottom:1rem; grid-column: 1 / -1;">
           </div>
 
-          <div id="hero-default-content">
+          <div id="hero-default-content" style="grid-column: 1 / -1;">
             <div class="hero-badge">
               💛 Premium Hybrid Experience
               <span class="chip">Verified profiles · Kerala focus</span>
@@ -69,8 +69,8 @@
             </p>
 
             <div class="hero-cta">
-              <a href="matches.html" class="btn btn-primary">View Today’s Matches</a>
-              <a href="search.html" class="btn btn-ghost">Advanced Search</a>
+              <a href="/dating/matches.html" class="btn btn-primary">View Today’s Matches</a>
+              <a href="/dating/search.html" class="btn btn-ghost">Advanced Search</a>
             </div>
 
             <div class="hero-stats">
@@ -89,26 +89,7 @@
             </div>
           </div>
 
-          <aside class="hero-illustration">
-            <div class="hero-illustration-main">Your compatibility radar</div>
-            <p style="font-size:.78rem;color:var(--text-soft);margin:0;">
-              We analyse interests, traditions, language & lifestyle to surface
-              the most relevant profiles.
-            </p>
-
-            <div class="hero-avatars-row">
-              <div class="hero-mini-avatar"></div>
-              <div class="hero-mini-avatar"></div>
-              <div class="hero-mini-avatar"></div>
-              <span style="margin-left:.5rem;font-size:.75rem;color:var(--text-soft);">
-                +134 online now
-              </span>
-            </div>
-
-            <div style="margin-top:.8rem;font-size:.78rem;">
-              <span class="chip">Safe · Private · Family Friendly</span>
-            </div>
-          </aside>
+          <!-- Removed: compatibility radar card and right-side hero illustration (per task) -->
         </section>
 
         <!-- Quick Actions -->
@@ -126,7 +107,7 @@
               <p class="quick-card-text">
                 Add education, community & lifestyle details for better match accuracy.
               </p>
-              <a href="profile.html" class="btn btn-primary">Update profile</a>
+              <a href="/dating/profile.html" class="btn btn-primary">Update profile</a>
             </article>
 
             <article class="card card-soft">
@@ -134,7 +115,7 @@
               <p class="quick-card-text">
                 Based on your preferences and family expectations.
               </p>
-              <a href="matches.html" class="btn btn-ghost">See matches</a>
+              <a href="/dating/matches.html" class="btn btn-ghost">See matches</a>
             </article>
 
             <article class="card card-soft">
@@ -142,7 +123,7 @@
               <p class="quick-card-text">
                 Filter by city, district, native place or working location.
               </p>
-              <a href="search.html" class="btn btn-ghost">Open search</a>
+              <a href="/dating/search.html" class="btn btn-ghost">Open search</a>
             </article>
           </div>
         </section>
@@ -173,42 +154,13 @@
       </span>
     </footer>
 
-    <!-- Public Profile Modal (Modern) -->
-    <div id="public-profile-modal" class="modal-overlay">
-      <div class="modal-content">
-        <button class="modal-close" id="modal-close-btn">&times;</button>
 
-        <div class="modal-gallery" id="modal-gallery">
-          <!-- Images injected here -->
-        </div>
-
-        <div class="modal-body">
-          <div class="modal-title-row">
-            <div>
-              <div class="modal-name" id="modal-name">Name</div>
-              <div class="modal-meta" id="modal-meta">Age · Location</div>
-            </div>
-          </div>
-
-          <div class="tag-list" id="modal-tags">
-            <!-- tags -->
-          </div>
-
-          <p id="modal-bio" style="margin: 1rem 0; line-height: 1.6; color: var(--text-main); font-size: 0.95rem;">
-            Bio text...
-          </p>
-
-          <div style="margin-top: 1.5rem; display: flex; gap: 0.5rem; justify-content: flex-end;">
-            <button class="btn btn-primary" style="flex: 1; padding: 0.5rem 1rem;"
-              id="modal-connect-btn">Connect</button>
-            <button class="btn btn-ghost" style="flex: 1; padding: 0.5rem 1rem;" id="modal-video-btn">Video
-              Call</button>
-          </div>
-        </div>
-      </div>
-    </div>
 
   </div>
+  <script type="module" src="/dating/user-context.js"></script>
+  <script type="module" src="/dating/firebase-helpers.js"></script>
+  <script type="module" src="/dating/home.js"></script>
+  <script type="module" src="/dating/app.js"></script>
 </body>
 
 </html>

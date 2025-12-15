@@ -30,8 +30,6 @@ const els = {
   income: el('income'),
   height: el('height'),
   religion: el('religion'),
-  community: el('community'),
-  education: el('education'),
   maritalStatus: el('maritalStatus'),
   interests: el('interests'),
   bio: el('bio'),
@@ -82,8 +80,6 @@ async function loadProfile(uid) {
   els.income.value = data.income || '';
   els.height.value = data.height || '';
   els.religion.value = data.religion || '';
-  els.community.value = data.community || '';
-  els.education.value = data.education || '';
   els.maritalStatus.value = data.maritalStatus || '';
   els.bio.value = data.bio || '';
   els.isVisible.checked = !!data.isVisible;
@@ -189,8 +185,6 @@ async function saveProfile(silent = false) {
     income: els.income.value,
     height: els.height.value ? Number(els.height.value) : null,
     religion: els.religion.value,
-    community: els.community.value,
-    education: els.education.value,
     maritalStatus: els.maritalStatus.value,
     interests: els.interests.value.split(',').map(s => s.trim()).filter(Boolean),
     bio: els.bio.value.trim(),

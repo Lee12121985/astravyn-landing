@@ -148,20 +148,76 @@ function makeInteractive(container) {
 }
 
 // Profile Details Modal
+// Profile Details Modal
 window.showProfileDetails = async function (id) {
-  const modal = document.getElementById('public-profile-modal');
-  if (!modal) return;
+  // Ensure modal exists (inject if missing)
+  let modal = document.getElementById('public-profile-modal');
+  if (!modal) {
+    const modalHtml = `
+    <div id="public-profile-modal" class="modal-overlay">
+      <div class="modal-content" style="max-width: 800px;"> <!-- Widened -->
+        <button class="modal-close" id="modal-close-btn">&times;</button>
+        <div class="modal-gallery" id="modal-gallery" style="scroll-snap-type: x mandatory; display: flex; overflow-x: auto;">
+          <!-- Images injected here -->
+        </div>
+        <div class="modal-body">
+          <div class="modal-title-row">
+            <div>
+              <div class="modal-name" id="modal-name" style="font-size: 2rem;">Name</div>
+              <div class="modal-meta" id="modal-meta" style="font-size: 1.1rem; color: var(--neon-cyan);">Age · Location</div>
+            </div>
+          </div>
+          <div class="tag-list" id="modal-tags"></div>
+          
+          <div style="margin-top:1.5rem; display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; font-size:0.95rem;">
+             <div>
+               <div style="color:var(--text-muted); font-size:0.8rem; text-transform:uppercase; margin-bottom:0.3rem;">Profession</div>
+               <div id="modal-prof" style="color:white; font-weight:600;">-</div>
+             </div>
+             <div>
+               <div style="color:var(--text-muted); font-size:0.8rem; text-transform:uppercase; margin-bottom:0.3rem;">Education</div>
+               <div id="modal-edu" style="color:white; font-weight:600;">-</div>
+             </div>
+             <div>
+               <div style="color:var(--text-muted); font-size:0.8rem; text-transform:uppercase; margin-bottom:0.3rem;">Marital Status</div>
+               <div id="modal-ms" style="color:white; font-weight:600;">-</div>
+             </div>
+             <div>
+               <div style="color:var(--text-muted); font-size:0.8rem; text-transform:uppercase; margin-bottom:0.3rem;">Height</div>
+               <div id="modal-height" style="color:white; font-weight:600;">-</div>
+             </div>
+          </div>
 
-  // Show loading state if needed, or fetch data
-  // For simplicity, we might need to fetch the doc if we don't have it in memory.
-  // Ideally, 'datingProfiles' array should be accessible, but we can fetch single doc.
+          <div style="margin-top:1.5rem;">
+            <div style="color:var(--text-muted); font-size:0.8rem; text-transform:uppercase; margin-bottom:0.5rem;">About</div>
+            <p id="modal-bio" style="line-height:1.6; color:var(--text-main); font-size:1rem;"></p>
+          </div>
 
-  // Basic placeholders
-  document.getElementById('modal-name').textContent = "Loading...";
+          <div style="margin-top: 2rem; display: flex; gap: 1rem; justify-content: flex-end;">
+            <button class="btn btn-ghost" style="flex: 1; border-color: var(--neon-pink); color: var(--neon-pink);" id="modal-like-btn">
+              <span>♥</span> Like
+            </button>
+            <button class="btn btn-primary" style="flex: 2;" id="modal-connect-btn">Connect Request</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    modal = document.getElementById('public-profile-modal');
+
+    // Attach Close Listeners immediately
+    const closeBtn = document.getElementById('modal-close-btn');
+    closeBtn.onclick = () => modal.classList.remove('open');
+    modal.onclick = (e) => {
+      if (e.target === modal) modal.classList.remove('open');
+    };
+  }
+
+  // Open Modal
   modal.classList.add('open');
+  document.getElementById('modal-name').textContent = "Loading...";
 
   try {
-    // We import getting single doc logic or use fetchProfiles logic
     const { doc, getDoc } = await import('https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js');
     const snap = await getDoc(doc(db, 'datingProfiles', id));
 
@@ -169,57 +225,69 @@ window.showProfileDetails = async function (id) {
       const p = snap.data();
       document.getElementById('modal-name').textContent = p.displayName || "Unknown";
       document.getElementById('modal-meta').textContent = `${p.age || "?"} · ${p.location || "Unknown"}`;
+      document.getElementById('modal-prof').textContent = p.profession || "Not specified";
+      document.getElementById('modal-edu').textContent = p.education || "Not specified";
+      document.getElementById('modal-ms').textContent = p.maritalStatus || "Not specified";
+      document.getElementById('modal-height').textContent = p.height ? `${p.height} cm` : "N/A";
       document.getElementById('modal-bio').textContent = p.bio || "No bio available.";
 
       // Tags
       const tagsContainer = document.getElementById('modal-tags');
       tagsContainer.innerHTML = (p.interests || []).map(i => `<span class="tag">${escapeHtml(i)}</span>`).join("");
 
-      // Gallery (Simplified: just main photo or fallback)
+      // Gallery (All Photos)
       const gallery = document.getElementById('modal-gallery');
-      let mainPhoto = p.photoURL;
-      if (p.photos && p.photos.length > 0) mainPhoto = p.photos[0].url;
+      let photosHtml = '';
 
-      if (mainPhoto) {
-        gallery.innerHTML = `<img src="${mainPhoto}" style="width:100%;height:100%;object-fit:cover;">`;
+      // Add photos from array
+      if (p.photos && p.photos.length > 0) {
+        p.photos.forEach(photo => {
+          photosHtml += `<div style="flex:0 0 100%; height:400px; scroll-snap-align: center;">
+                            <img src="${photo.url}" style="width:100%; height:100%; object-fit:contain; background:#000;">
+                          </div>`;
+        });
+      } else if (p.photoURL) {
+        // Fallback to single photoURL if no array
+        photosHtml = `<div style="flex:0 0 100%; height:400px; scroll-snap-align: center;">
+                          <img src="${p.photoURL}" style="width:100%; height:100%; object-fit:contain; background:#000;">
+                       </div>`;
       } else {
-        gallery.innerHTML = `<span style="color:white;font-size:2rem;">${(p.displayName || "U").charAt(0)}</span>`;
+        // Fallback text
+        photosHtml = `<div style="flex:0 0 100%; height:400px; display:flex; align-items:center; justify-content:center; background:var(--primary-grad);">
+                          <span style="font-size:4rem; color:white; font-weight:800;">${(p.displayName || "U").charAt(0)}</span>
+                       </div>`;
       }
 
-      // Enhanced Bio & Details Section
-      const bioEl = document.getElementById('modal-bio');
-      const detailsHtml = `
-        <div style="margin-top:1.5rem; display:grid; grid-template-columns:1fr 1fr; gap:1rem; font-size:0.9rem; color:var(--text-muted);">
-           <div>
-             <div style="color:var(--text-dim); font-size:0.8rem; text-transform:uppercase; letter-spacing:0.05em;">Profession</div>
-             <div style="color:var(--text-main); font-weight:500;">${escapeHtml(p.profession || "Not specified")}</div>
-           </div>
-           <div>
-             <div style="color:var(--text-dim); font-size:0.8rem; text-transform:uppercase; letter-spacing:0.05em;">Education</div>
-             <div style="color:var(--text-main); font-weight:500;">${escapeHtml(p.education || "Not specified")}</div>
-           </div>
-           <div>
-             <div style="color:var(--text-dim); font-size:0.8rem; text-transform:uppercase; letter-spacing:0.05em;">Marital Status</div>
-             <div style="color:var(--text-main); font-weight:500;">${escapeHtml(p.maritalStatus || "Not specified")}</div>
-           </div>
-           <div>
-             <div style="color:var(--text-dim); font-size:0.8rem; text-transform:uppercase; letter-spacing:0.05em;">Height</div>
-             <div style="color:var(--text-main); font-weight:500;">${escapeHtml(p.height ? p.height + " cm" : "N/A")}</div>
-           </div>
-        </div>
-        <div style="margin-top:1.5rem;">
-           <div style="color:var(--text-dim); font-size:0.8rem; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:0.5rem;">About</div>
-           <p style="line-height:1.6; color:var(--text-main); font-size:0.95rem;">${escapeHtml(p.bio || "No bio available.")}</p>
-        </div>
-      `;
-      bioEl.innerHTML = detailsHtml;
+      // If multiple photos, maybe show a hint? The horizontal scroll handles it.
+      gallery.innerHTML = photosHtml;
 
-      // Close Button
-      document.getElementById('modal-close-btn').onclick = () => modal.classList.remove('open');
-      // Outside click
-      modal.onclick = (e) => {
-        if (e.target === modal) modal.classList.remove('open');
+
+      // Button Actions
+      const connectBtn = document.getElementById('modal-connect-btn');
+      const likeBtn = document.getElementById('modal-like-btn');
+
+      // Reset buttons
+      connectBtn.disabled = false;
+      connectBtn.textContent = "Connect Request";
+      likeBtn.disabled = false;
+      likeBtn.innerHTML = "<span>♥</span> Like";
+
+      connectBtn.onclick = async () => {
+        if (!auth.currentUser) return showToast("Login required", "error");
+        const res = await sendLike(auth.currentUser.uid, id, 'connect_request');
+        connectBtn.textContent = "Sent";
+        connectBtn.disabled = true;
+        showToast(res.isMatch ? "It's a Match!" : "Request Sent");
       };
+
+      likeBtn.onclick = async () => {
+        if (!auth.currentUser) return showToast("Login required", "error");
+        const res = await sendLike(auth.currentUser.uid, id, 'like');
+        likeBtn.innerHTML = "<span>♥</span> Liked";
+        likeBtn.disabled = true;
+        showToast("Liked!");
+      };
+
     }
   } catch (e) {
     console.error("Error fetching details", e);
@@ -234,6 +302,11 @@ function initSearchPage(container) {
   const ageSlider = document.getElementById('search-age-slider');
   const ageDisplay = document.getElementById('age-display');
   const locSelect = document.getElementById('search-location');
+  const nameInput = document.getElementById('search-name');
+
+  // Cache of loaded profiles for client-side filtering
+  let cachedProfiles = [];
+  let nameDebounce = null;
 
   // Slider UI
   if (ageSlider && ageDisplay) {
@@ -288,14 +361,63 @@ function initSearchPage(container) {
       if (profession !== 'any') filters.profession = profession;
 
       const results = await fetchProfilesOnce({ limitCount: 20, filters });
+      // update cache for client-side filtering
+      cachedProfiles = results;
       renderProfiles(container, results);
 
       showToast(`Found ${results.length} matches`);
     });
   }
 
-  // Initial Load
-  fetchProfilesOnce({ limitCount: 10 }).then(res => renderProfiles(container, res));
+  // Apply client-side filters to cachedProfiles and render
+  function applyClientFilters() {
+    const minAge = ageSlider ? ageSlider.value : null;
+    const location = locSelect ? locSelect.value : 'any';
+    const community = document.getElementById('search-community') ? document.getElementById('search-community').value : 'any';
+    const education = document.getElementById('search-education') ? document.getElementById('search-education').value : 'any';
+    const profession = document.getElementById('search-profession') ? document.getElementById('search-profession').value : 'any';
+    const rawName = nameInput ? nameInput.value.trim() : '';
+    const term = rawName.toLowerCase();
+
+    let results = cachedProfiles.slice();
+
+    if (minAge) results = results.filter(p => (p.age || 0) >= Number(minAge));
+    if (location && location !== 'any') results = results.filter(p => (p.location || '') === location);
+    if (community && community !== 'any') results = results.filter(p => (p.community || '') === community);
+    if (education && education !== 'any') results = results.filter(p => (p.education || '') === education);
+    if (profession && profession !== 'any') results = results.filter(p => (p.profession || '') === profession);
+
+    if (term && term.length > 0) {
+      results = results.filter(p => {
+        const dn = (p.displayName || '').toString().toLowerCase();
+        const fn = ((p.firstName || '') + ' ' + (p.lastName || '')).trim().toLowerCase();
+        return (dn.includes(term) || fn.includes(term));
+      });
+    }
+
+    renderProfiles(container, results);
+  }
+
+  // Debounced name input handling for instant filtering
+  if (nameInput) {
+    nameInput.addEventListener('input', () => {
+      if (nameDebounce) clearTimeout(nameDebounce);
+      nameDebounce = setTimeout(() => {
+        // If we don't have a sufficiently large cache, fetch a wider set then apply
+        if (!cachedProfiles || cachedProfiles.length < 20) {
+          fetchProfilesOnce({ limitCount: 100 }).then(res => {
+            cachedProfiles = res;
+            applyClientFilters();
+          });
+        } else {
+          applyClientFilters();
+        }
+      }, 220);
+    });
+  }
+
+  // Initial Load - fetch a larger set to enable client-side name filtering immediately
+  fetchProfilesOnce({ limitCount: 100 }).then(res => { cachedProfiles = res; renderProfiles(container, res); });
 }
 
 // Matches Page Logic
@@ -381,6 +503,63 @@ function initSettingsPage() {
         });
       }
     });
+  }
+    });
+
+// Account Actions
+// 1. Change Password
+const changePwdBtn = document.querySelector('button[onclick*="Change Password"]') || Array.from(document.querySelectorAll('button')).find(b => b.textContent.includes('Change Password'));
+if (changePwdBtn) {
+  changePwdBtn.onclick = async () => {
+    if (confirm("Send a password reset email to your registered address?")) {
+      try {
+        // Basic implementation: send reset email
+        const { sendPasswordResetEmail } = await import('https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js');
+        await sendPasswordResetEmail(auth, user.email);
+        showToast("Password reset email sent!", "success");
+      } catch (e) {
+        console.error(e);
+        showToast("Error sending email: " + e.message, "error");
+      }
+    }
+  };
+}
+
+// 2. Download Data
+const downloadBtn = document.querySelector('button[onclick*="Download Data"]') || Array.from(document.querySelectorAll('button')).find(b => b.textContent.includes('Download Data'));
+if (downloadBtn) {
+  downloadBtn.onclick = () => {
+    if (confirm("Download a copy of your personal data?")) {
+      // Create a JSON blob
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(settings, null, 2));
+      const downloadAnchorNode = document.createElement('a');
+      downloadAnchorNode.setAttribute("href", dataStr);
+      downloadAnchorNode.setAttribute("download", "astravyn_data_" + user.uid + ".json");
+      document.body.appendChild(downloadAnchorNode); // required for firefox
+      downloadAnchorNode.click();
+      downloadAnchorNode.remove();
+      showToast("Download started", "success");
+    }
+  };
+}
+
+// 3. Deactivate
+const deactivateBtn = document.querySelector('button[onclick*="Deactivate Profile"]') || Array.from(document.querySelectorAll('button')).find(b => b.textContent.includes('Deactivate Profile'));
+if (deactivateBtn) {
+  deactivateBtn.onclick = async () => {
+    const ans = prompt("Type 'DEACTIVATE' to confirm disabling your profile. This will hide you from searches.");
+    if (ans === 'DEACTIVATE') {
+      await updateUserSettings(user.uid, { isVisible: false, deactivated: true });
+      showToast("Profile deactivated. You are now invisible.", "success");
+      setTimeout(() => {
+        signOut(auth).then(() => window.location.href = '../login/index.html');
+      }, 2000);
+    } else if (ans !== null) {
+      showToast("Deactivation cancelled", "error");
+    }
+  };
+}
+
   });
 }
 
@@ -427,6 +606,7 @@ function setupUserMenu() {
   if (logoutBtn) {
     logoutBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
+      if (!confirm("Are you sure you want to log out?")) return;
       try {
         await signOut(auth);
         window.location.href = '../login/index.html';

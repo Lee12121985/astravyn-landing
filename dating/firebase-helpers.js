@@ -74,11 +74,23 @@ export async function fetchProfilesOnce({ limitCount = 24, filters = {} } = {}) 
   }
 
   // Client-side name filtering (case-insensitive, partial match)
-  if (filters.name && filters.name.length > 0) {
-    const term = (filters.name || '').trim().toLowerCase();
-    if (term.length > 0) {
-      results = results.filter(p => ((p.displayName || '') + '').toLowerCase().includes(term));
-    }
+  const term = (filters.name || '').trim().toLowerCase();
+  if (term.length > 0) {
+    results = results.filter(p => ((p.displayName || '') + '').toLowerCase().includes(term));
+  }
+
+  // Client-side extended filters (community, education, profession)
+  if (filters.community && filters.community !== 'any') {
+    results = results.filter(p => (p.community || '') === filters.community);
+  }
+  if (filters.education && filters.education !== 'any') {
+    results = results.filter(p => (p.education || '') === filters.education);
+  }
+  if (filters.profession && filters.profession !== 'any') {
+    results = results.filter(p => (p.profession || '') === filters.profession);
+  }
+  if (filters.heightMin) {
+    results = results.filter(p => (p.height || 0) >= Number(filters.heightMin));
   }
 
   if (filters.isNew) {

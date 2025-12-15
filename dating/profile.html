@@ -5,11 +5,11 @@
   <meta charset="utf-8" />
   <title>Astravyn — Edit Profile</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="/dating/style.css" />
   <link rel="stylesheet" href="/dating/dating-theme.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <script type="module" src="/dating/user-context.js"></script>
-  <script type="module" src="/dating/app.js"></script>
+
 </head>
 
 <body data-page="profile">
@@ -131,6 +131,36 @@
                 </div>
               </div>
 
+              <!-- Added Education & Community -->
+              <div class="grid grid-2" style="gap: 1rem; margin-top: 1rem;">
+                <div class="form-group">
+                  <label class="form-label">Education</label>
+                  <select id="education" class="form-select">
+                    <option value="">Select</option>
+                    <option value="Bachelors">Bachelors</option>
+                    <option value="Masters">Masters</option>
+                    <option value="PhD">PhD</option>
+                    <option value="Diploma">Diploma</option>
+                    <option value="High School">High School</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Community</label>
+                  <select id="community" class="form-select">
+                    <option value="">Select (Optional)</option>
+                    <option value="Nair">Nair</option>
+                    <option value="Ezhava">Ezhava</option>
+                    <option value="Christian">Christian</option>
+                    <option value="Muslim">Muslim</option>
+                    <option value="Brahmin">Brahmin</option>
+                    <option value="Vishwakarma">Vishwakarma</option>
+                    <option value="SC/ST">SC/ST</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+
               <!-- Structured Location -->
               <div class="grid grid-2" style="gap: 1rem;">
                 <div class="form-group">
@@ -211,10 +241,10 @@
                 </div>
               </div>
 
-              <div style="margin-top:2rem; display:flex; gap:1rem; align-items:center;">
+              <div class="profile-actions-row">
                 <button id="saveProfile" type="button" class="btn btn-primary">Save Changes</button>
                 <p id="save-status"
-                  style="font-size:0.85rem; color:var(--neon-cyan); opacity:0; transition:opacity 0.3s;">Saved
+                  style="font-size:0.85rem; color:var(--neon-cyan); opacity:0; transition:opacity 0.3s; margin:0;">Saved
                   successfully!</p>
               </div>
             </form>
@@ -238,15 +268,15 @@
               <div class="photo-slot"><span style="font-size:1.5rem;color:rgba(255,255,255,0.2);">+</span></div>
             </div>
 
-            <div style="display:flex; flex-direction:column; gap:0.8rem;">
+            <div class="photo-upload-actions">
               <input id="photoFile" type="file" accept="image/*" style="display:none;" />
               <button id="uploadPhotoBtn" class="btn btn-ghost"
                 style="width:100%; border-style:dashed; justify-content:center;">
                 <span style="font-size:1.2rem;">+</span> Upload Photo
               </button>
 
-              <div style="position:relative;">
-                <input id="photoURL" class="form-input" style="font-size:0.85rem; padding-right:80px;"
+              <div style="position:relative; width:100%;">
+                <input id="photoURL" class="form-input" style="font-size:0.85rem; padding-right:80px; width:100%;"
                   placeholder="Paste Image URL" />
                 <button id="addUrlBtn"
                   style="position:absolute; right:4px; top:4px; bottom:4px; padding:0 0.8rem; background:var(--neon-cyan); color:white; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:0.8rem;">Add</button>
@@ -267,6 +297,9 @@
       </div>
     </main>
   </div>
+  <script type="module" src="/dating/user-context.js"></script>
+  <script type="module" src="/dating/firebase-helpers.js"></script>
+  <script type="module" src="/dating/app.js"></script>
   <script type="module" src="/dating/profile.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <script>

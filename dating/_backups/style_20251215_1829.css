@@ -294,70 +294,39 @@ p {
 
 /* ===== Profile Card ===== */
 .profile-card {
-  position: relative;
-  overflow: hidden;
-  aspect-ratio: 4/ 4;
-  /* Ideal for dating apps */
-  padding: 0;
-  /* Remove padding so image fills card */
+  padding: 1rem;
   cursor: pointer;
-  border-radius: var(--radius-xl);
-  /* Match card radius */
 }
 
 .profile-card img {
   width: 100%;
-  height: 100%;
+  aspect-ratio: 3/4;
   object-fit: cover;
-  /* VERY IMPORTANT */
-  display: block;
-  margin: 0;
-  /* Remove margin */
-  border-radius: 0;
-  /* Let card container handle radius */
-  box-shadow: none;
-  /* Shadow on card logic */
+  border-radius: var(--radius-lg);
+  margin-bottom: 1rem;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
 }
 
 .profile-name {
   font-size: 1.1rem;
   font-weight: 700;
-  color: white;
-  /* Text on overlay must be white */
 }
 
 .profile-meta {
   font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.8);
-  /* Muted white */
+  color: var(--text-muted);
   display: block;
   margin-top: 0.1rem;
 }
 
 .tag-list {
-  display: none;
-  /* Hide tags on card preview for cleaner look, or style them for overlay */
-  /* If we want to keep them, we need to style them for dark background */
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.75rem 0;
 }
 
 .profile-actions {
-  /* Actions might be better outside the card or overlayed differently. 
-     For now, let's just fix the image visibility. 
-     If actions are inside the card, they need to be positioned.
-     Assuming actions are NOT inside .profile-card for the main listing based on screenshot 
-     (screenshot shows Connect/Like buttons at bottom).
-     Wait, looking at screenshot, the Connect/Like buttons ARE inside the card at the bottom.
-     The overlay covers them? No, the buttons are likely part of the overlay or below the image?
-     
-     If looking at the screenshot, the card has:
-     [ Image area ]
-     [ Name/Info overlay ]
-     [ Buttons ]
-     
-     Actually, the user says "Overlay covers the middle of the image".
-     
-     Let's stick to the user's specific CSS request which addresses the overlay height.
-  */
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.5rem;
@@ -369,47 +338,53 @@ p {
   font-size: 0.9rem;
 }
 
-/* ... Hero Section ... */
+/* ===== Hero Section ===== */
+.hero-card {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 3rem;
+  align-items: center;
+  background: linear-gradient(120deg, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.4));
+  margin-bottom: 2rem;
+}
 
-/* ... */
+.hero-title {
+  font-size: 2.5rem;
+  line-height: 1.1;
+  margin-bottom: 1rem;
+  background: linear-gradient(to right, #1e293b, #475569);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.hero-highlight {
+  color: var(--primary);
+  -webkit-text-fill-color: initial;
+}
+
+.hero-stats {
+  display: flex;
+  gap: 2rem;
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.hero-stat span:first-child {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--primary);
+  display: block;
+}
 
 .profile-info-overlay {
   position: absolute;
   bottom: 0;
   left: 0;
   width: 100%;
-  height: auto;
-  /* ✅ FIX: Content-based height */
-  padding: 0.75rem 1rem;
-  /* Smaller padding */
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-
+  /* Gradient overlay removed per request — keep spacing and layout */
   background: transparent;
-
-  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
-  pointer-events: none;
-}
-
-/* Fix text colors inside overlay since background is dark */
-.profile-info-overlay .profile-name {
-  color: white;
-}
-
-.profile-info-overlay .profile-meta {
-  color: rgba(255, 255, 255, 0.9);
-}
-
-.profile-info-overlay .tag {
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
-  border: none;
-}
-
-.profile-info-overlay .btn {
-  pointer-events: auto;
-  /* Ensure buttons click */
+  padding: 4rem 1.5rem 1.5rem;
 }
 
 .hero-illustration-main {
@@ -721,22 +696,4 @@ p {
 .photo-delete-btn:hover {
   background: #dc2626;
   transform: scale(1.05);
-}
-/* === Gradient effects disabled intentionally === */
-/* Remove photo overlay gradients */
-.profile-card::before,
-.profile-card::after {
-  content: none !important;
-  background: none !important;
-}
-
-/* Remove card top glow gradient */
-.card::before {
-  content: none !important;
-  background: none !important;
-}
-
-/* Add text shadow for readability */
-.profile-info-overlay {
-  text-shadow: 0 1px 3px rgba(0,0,0,0.35);
 }

@@ -5,9 +5,8 @@
     <meta charset="UTF-8" />
     <title>Astravyn – Likes</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="/dating/style.css" />
     <link rel="stylesheet" href="/dating/dating-theme.css" />
-    <script type="module" src="/dating/user-context.js"></script>
-    <script type="module" src="/dating/app.js"></script>
 </head>
 
 <body data-page="likes">
@@ -56,17 +55,20 @@
                     <div class="card card-soft" style="margin-bottom:1.1rem;">
                         <div class="filter-bar">
                             <div class="matches-filters">
-                                <button class="filter-tab" onclick="window.location.href='matches.html'">All</button>
-                                <button class="filter-tab" onclick="window.location.href='matches.html'">New</button>
-                                <button class="filter-tab" onclick="window.location.href='matches.html'">Nearby</button>
                                 <button class="filter-tab"
-                                    onclick="window.location.href='matches.html'">Premium</button>
+                                    onclick="window.location.href='/dating/matches.html'">All</button>
+                                <button class="filter-tab"
+                                    onclick="window.location.href='/dating/matches.html'">New</button>
+                                <button class="filter-tab"
+                                    onclick="window.location.href='/dating/matches.html'">Nearby</button>
+                                <button class="filter-tab"
+                                    onclick="window.location.href='/dating/matches.html'">Premium</button>
                                 <div
                                     style="width: 1rem; border-left: 1px solid rgba(255,255,255,0.1); margin: 0 0.5rem;">
                                 </div>
                                 <button class="filter-tab active">Likes</button>
                                 <button class="filter-tab"
-                                    onclick="window.location.href='connects.html'">Connects</button>
+                                    onclick="window.location.href='/dating/connects.html'">Connects</button>
                             </div>
                             <select class="filter-sort">
                                 <option>Sort: Recently Liked</option>
@@ -82,10 +84,11 @@
             </div>
         </main>
 
-        <footer class="footer">
-            Need better matches? Refine your preferences in Profile & Settings.
-        </footer>
+
     </div>
+    <script type="module" src="/dating/user-context.js"></script>
+    <script type="module" src="/dating/firebase-helpers.js"></script>
+    <script type="module" src="/dating/app.js"></script>
 </body>
 
 </html>

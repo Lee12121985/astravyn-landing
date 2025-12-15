@@ -5,9 +5,8 @@
   <meta charset="UTF-8" />
   <title>Astravyn – Settings</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="/dating/style.css" />
   <link rel="stylesheet" href="/dating/dating-theme.css" />
-  <script type="module" src="/dating/user-context.js"></script>
-  <script type="module" src="/dating/app.js"></script>
 </head>
 
 <body data-page="settings">
@@ -134,7 +133,7 @@
                 These options impact your visibility and access to your Astravyn account.
               </p>
 
-              <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.8rem;">
+              <div style="display:flex; flex-direction:column; gap:0.8rem;">
                 <button class="btn btn-ghost" type="button" style="justify-content:center;">
                   Change Password
                 </button>
@@ -162,6 +161,9 @@
       Your privacy is our priority. We never share contact details without consent.
     </footer>
   </div>
+  <script type="module" src="/dating/user-context.js"></script>
+  <script type="module" src="/dating/firebase-helpers.js"></script>
+  <script type="module" src="/dating/app.js"></script>
 </body>
 
 </html>

@@ -1,7 +1,7 @@
 import { db, storage } from '../js/firebase-config.js';
 import { requireAdmin } from '../js/auth.js';
-import { collection, getDocs, doc, updateDoc, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
-import { ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js';
+import { collection, getDocs, doc, updateDoc, deleteDoc, arrayRemove, getDoc } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js';
 
 requireAdmin(); // block non-admin
 
@@ -205,6 +205,48 @@ function closeModal() {
 	currentPhotos = [];
 }
 
+// ADMIN PHOTO DELETE LOGIC
+async function deleteAdminPhoto(url, index) {
+	if (!confirm("Permanently delete this photo from storage and database?")) return;
+
+	try {
+		// 1. Delete from Storage
+		const sRef = ref(storage, url);
+		await deleteObject(sRef).catch(err => console.warn("Admin delete warning:", err));
+
+		// 2. Remove from Firestore array
+		// We need to fetch the doc again to get the exact object to remove, or filter and update.
+		// Filtering is safer if we don't have the object.
+		const dRef = doc(db, 'datingProfiles', currentEditingId);
+		const snap = await getDoc(dRef);
+		if (snap.exists()) {
+			const data = snap.data();
+			const existingPhotos = data.photos || [];
+			// Filter out any photo that matches the URL
+			const newPhotos = existingPhotos.filter(p => {
+				const pUrl = typeof p === 'object' ? p.url : p;
+				return pUrl !== url;
+			});
+
+			await updateDoc(dRef, { photos: newPhotos });
+
+			// If simple photoURL was this one, clear it
+			if (data.photoURL === url) {
+				await updateDoc(dRef, { photoURL: (newPhotos.length > 0 ? (newPhotos[0].url || newPhotos[0]) : "") });
+			}
+		}
+
+		// 3. Update UI
+		currentPhotos.splice(index, 1);
+		renderPhotoGrid();
+		showToast("Photo deleted", "success");
+
+	} catch (err) {
+		console.error("Admin delete failed:", err);
+		showToast("Deletion failed: " + err.message, "error");
+	}
+}
+
 // Renders Current URLs + Pending Files
 function renderPhotoGrid() {
 	photoGrid.innerHTML = '';
@@ -241,11 +283,13 @@ function renderPhotoGrid() {
 			const type = btn.dataset.type;
 			const idx = parseInt(btn.dataset.idx);
 			if (type === 'url') {
-				currentPhotos.splice(idx, 1);
+				// Invoke async delete
+				deleteAdminPhoto(currentPhotos[idx], idx);
 			} else {
+				// Just remove pending file
 				pendingUploads.splice(idx, 1);
+				renderPhotoGrid();
 			}
-			renderPhotoGrid();
 		};
 	});
 }

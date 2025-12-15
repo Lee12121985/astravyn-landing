@@ -5,9 +5,8 @@
   <meta charset="UTF-8" />
   <title>Astravyn – Search</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="/dating/style.css" />
   <link rel="stylesheet" href="/dating/dating-theme.css" />
-  <script type="module" src="/dating/user-context.js"></script>
-  <script type="module" src="/dating/app.js"></script>
 </head>
 
 <body data-page="search">
@@ -53,16 +52,16 @@
             <span class="chip">Family-friendly filters</span>
           </div>
 
-          <div class="search-layout">
-            <!-- Filters (unchanged) -->
-            <aside class="filter-panel">
+          <div class="search-page-container" style="display: flex; flex-direction: column; gap: 2rem;">
+            <!-- Filters (Full Width) -->
+            <div class="filter-panel" style="width: 100%;">
               <!-- ... filter UI left untouched ... -->
               <!-- Filters Grid -->
               <!-- Refined Search Layout -->
-              <div style="max-width: 900px; margin: 0 auto;">
-
-                <!-- Name Filter (New) -->
-                <div class="filter-group" style="margin-bottom: 1.5rem;">
+              <!-- Filters Grid (Horizontal Layout) -->
+              <div class="search-grid-layout">
+                <!-- ROW 1: Name (2 cols) + Location (1 col) -->
+                <div class="filter-group span-2-cols">
                   <div class="filter-label">Name</div>
                   <div class="premium-search-field" style="position: relative;">
                     <span
@@ -73,117 +72,113 @@
                         <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                       </svg>
                     </span>
-                    <input type="text" id="search-name" class="filter-input premium-input"
-                      placeholder="Search by name (optional)" style="width: 100%; padding-left: 40px;">
+                    <input type="text" id="search-name" class="premium-input" placeholder="Search by name..."
+                      style="width: 100%; padding-left: 40px;">
                   </div>
                 </div>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
-                  <!-- Range Group -->
-                  <div class="card card-soft"
-                    style="padding: 1.5rem; border-radius: 16px; margin-bottom: 0; grid-column:span 2; display:grid; grid-template-columns:1fr 1fr; gap:2rem;">
-                    <div class="filter-group" style="margin-bottom: 0;">
-                      <div class="filter-label"
-                        style="display: flex; justify-content: space-between; margin-bottom: 0.8rem; font-weight: 600; color: var(--text-dim);">
-                        <span>Age Range</span>
-                        <span id="age-display" style="color: var(--neon-cyan);">24 - 29</span>
-                      </div>
-                      <div class="range-slider-container" style="padding: 0;">
-                        <input type="range" id="search-age-slider" min="18" max="60" value="24" class="range-slider">
-                      </div>
+                <div class="filter-group">
+                  <div class="filter-label">Location</div>
+                  <select class="search-select" id="search-location" style="width: 100%;">
+                    <option value="any">Any City</option>
+                    <option value="Kochi">Kochi</option>
+                    <option value="Bangalore">Bangalore</option>
+                    <option value="Mumbai">Mumbai</option>
+                    <option value="Dubai">Dubai</option>
+                  </select>
+                </div>
+
+                <!-- ROW 2: Age/Height (2 cols) + Nationality (1 col) -->
+                <div class="card card-soft span-2-cols"
+                  style="padding: 1.5rem; border-radius: 16px; margin-bottom: 0; display:grid; grid-template-columns:1fr 1fr; gap:2rem;">
+                  <div class="filter-group" style="margin-bottom: 0;">
+                    <div class="filter-label"
+                      style="display: flex; justify-content: space-between; margin-bottom: 0.8rem; font-weight: 600; color: var(--text-dim);">
+                      <span>Age</span>
+                      <span id="age-display" style="color: var(--neon-cyan);">24 - 29</span>
                     </div>
-                    <div class="filter-group" style="margin-bottom: 0;">
-                      <div class="filter-label"
-                        style="display: flex; justify-content: space-between; margin-bottom: 0.8rem; font-weight: 600; color: var(--text-dim);">
-                        <span>Height (≥ cm)</span>
-                        <span id="height-display" style="color: var(--neon-cyan);">160 cm</span>
-                      </div>
-                      <div class="range-slider-container" style="padding: 0;">
-                        <input type="range" id="search-height-slider" min="140" max="220" value="160"
-                          class="range-slider">
-                      </div>
+                    <div class="range-slider-container" style="padding: 0;">
+                      <input type="range" id="search-age-slider" min="18" max="60" value="24" class="range-slider">
                     </div>
                   </div>
-                  <!-- New Location Filters -->
-                  <div class="filter-group">
-                    <div class="filter-label">Nationality</div>
-                    <select class="filter-input search-select" id="search-nationality" style="width: 100%;">
-                      <option value="any">Any</option>
-                      <option value="India">India</option>
-                      <option value="USA">USA</option>
-                      <option value="UAE">UAE</option>
-                      <option value="UK">UK</option>
-                    </select>
-                  </div>
-                  <div class="filter-group">
-                    <div class="filter-label">Location (State/City)</div>
-                    <!-- Simplified search UI: Combine State/City or just use City for MVP search -->
-                    <!-- User asked for structured search filters. Let's add them all or smart combo -->
-                    <!-- Adding State and City logic might require dynamic JS in search page too. -->
-                    <!-- For simplicity in UI, let's keep City as main searchable, but allow State -->
-                    <select class="filter-input search-select" id="search-location" style="width: 100%;">
-                      <option value="any">Any City</option>
-                      <option value="Kochi">Kochi</option>
-                      <option value="Bangalore">Bangalore</option>
-                      <option value="Mumbai">Mumbai</option>
-                      <option value="Dubai">Dubai</option>
-                    </select>
-                  </div>
-                  <div class="filter-group">
-                    <div class="filter-label">Community</div>
-                    <select class="filter-input search-select" id="search-community" style="width: 100%;">
-                      <option value="any">Any</option>
-                      <option value="Nair">Nair</option>
-                      <option value="Ezhava">Ezhava</option>
-                      <option value="Christian">Christian</option>
-                      <option value="Muslim">Muslim</option>
-                    </select>
-                  </div>
-                  <div class="filter-group">
-                    <div class="filter-label">Education</div>
-                    <select class="filter-input search-select" id="search-education" style="width: 100%;">
-                      <option value="any">Any</option>
-                      <option value="Bachelors">Bachelors</option>
-                      <option value="Masters">Masters</option>
-                      <option value="PhD">PhD</option>
-                    </select>
-                  </div>
-                  <div class="filter-group">
-                    <div class="filter-label">Profession</div>
-                    <select class="filter-input search-select" id="search-profession" style="width: 100%;">
-                      <option value="any">Any</option>
-                      <option value="IT">IT / Software</option>
-                      <option value="Medical">Medical</option>
-                      <option value="Business">Business</option>
-                    </select>
+                  <div class="filter-group" style="margin-bottom: 0;">
+                    <div class="filter-label"
+                      style="display: flex; justify-content: space-between; margin-bottom: 0.8rem; font-weight: 600; color: var(--text-dim);">
+                      <span>Height</span>
+                      <span id="height-display" style="color: var(--neon-cyan);">160 cm</span>
+                    </div>
+                    <div class="range-slider-container" style="padding: 0;">
+                      <input type="range" id="search-height-slider" min="140" max="220" value="160"
+                        class="range-slider">
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div class="filter-group"
-                style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem;">
-                <button class="btn btn-ghost" id="btn-reset-filters" style="color: var(--text-muted);">
-                  <span style="font-size: 1.2em; margin-right: 6px;">⟳</span> Reset filters
-                </button>
-                <button class="btn btn-primary" id="btn-search-trigger"
-                  style="min-width: 200px; box-shadow: 0 4px 15px rgba(6, 182, 212, 0.4);">Search Matches</button>
+                <div class="filter-group">
+                  <div class="filter-label">Nationality</div>
+                  <select class="search-select" id="search-nationality" style="width: 100%;">
+                    <option value="any">Any</option>
+                    <option value="India">India</option>
+                    <option value="USA">USA</option>
+                    <option value="UAE">UAE</option>
+                    <option value="UK">UK</option>
+                  </select>
+                </div>
+
+                <!-- ROW 3: Community, Education, Profession (3 cols) -->
+                <div class="filter-group">
+                  <div class="filter-label">Community</div>
+                  <select class="search-select" id="search-community" style="width: 100%;">
+                    <option value="any">Any</option>
+                    <option value="Nair">Nair</option>
+                    <option value="Ezhava">Ezhava</option>
+                    <option value="Christian">Christian</option>
+                    <option value="Muslim">Muslim</option>
+                  </select>
+                </div>
+
+                <div class="filter-group">
+                  <div class="filter-label">Education</div>
+                  <select class="search-select" id="search-education" style="width: 100%;">
+                    <option value="any">Any</option>
+                    <option value="Bachelors">Bachelors</option>
+                    <option value="Masters">Masters</option>
+                    <option value="PhD">PhD</option>
+                  </select>
+                </div>
+
+                <div class="filter-group">
+                  <div class="filter-label">Profession</div>
+                  <select class="search-select" id="search-profession" style="width: 100%;">
+                    <option value="any">Any</option>
+                    <option value="IT">IT / Software</option>
+                    <option value="Medical">Medical</option>
+                    <option value="Business">Business</option>
+                  </select>
+                </div>
+
+                <!-- ROW 4: Actions (Full Width) -->
+                <div class="filter-group span-full"
+                  style="display: flex; justify-content: flex-end; align-items: center; gap: 1rem; margin-top: 0.5rem;">
+                  <button class="btn btn-ghost" id="btn-reset-filters"
+                    style="color: var(--text-muted); border: 1px solid var(--glass-border);">
+                    <span style="font-size: 1.2em; margin-right: 6px;">⟳</span> Reset
+                  </button>
+                  <button class="btn btn-primary" id="btn-search-trigger"
+                    style="min-width: 200px; box-shadow: 0 4px 15px rgba(6, 182, 212, 0.4);">Search Matches</button>
+                </div>
               </div>
+            </div>
+
+            <!-- other filters remain as in your file -->
+            <!-- ... -->
           </div>
-
-          <!-- other filters remain as in your file -->
-          <!-- ... -->
-          </aside>
 
           <!-- Results -->
           <div id="search-results" style="scroll-margin-top: 100px;">
-            <div class="card card-soft" style="margin-bottom:.9rem;">
-              <div class="section-header" style="margin-bottom:0;">
-                <div>
-                  <div class="section-title" style="font-size:1rem;">Search results</div>
-                  <div class="section-subtitle">Sample results shown; connect to backend later.</div>
-                </div>
-                <span class="chip">Showing 6 profiles</span>
-              </div>
+            <div class="section-header" style="margin-bottom: 1rem;">
+              <h2 class="section-title" style="font-size:1.5rem;">Matches</h2>
+              <span class="chip">Showing 6 profiles</span>
             </div>
 
             <div class="grid matches-grid">
@@ -199,6 +194,9 @@
     Tip: Start broad, then slowly narrow filters to find better matches.
   </footer>
   </div>
+  <script type="module" src="/dating/user-context.js"></script>
+  <script type="module" src="/dating/firebase-helpers.js"></script>
+  <script type="module" src="/dating/app.js"></script>
   <script>
     document.getElementById('btn-search-trigger').addEventListener('click', () => {
       setTimeout(() => {

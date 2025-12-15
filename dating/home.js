@@ -23,7 +23,7 @@ async function renderSelfProfile(user) {
             const location = data.location || '';
             const age = data.age ? `, ${data.age}` : '';
 
-            // Hide default hero, show profile view
+            // Show profile view in the left area (keep hero-illustration available)
             if (heroDefaultContent) heroDefaultContent.style.display = 'none';
             selfProfileContainer.style.display = 'flex';
 
@@ -45,6 +45,41 @@ async function renderSelfProfile(user) {
                     <a href="profile.html" class="btn btn-primary btn-sm">Edit Profile</a>
                 </div>
             `;
+
+            // If the user has uploaded a photo, clone the existing hero-illustration (marked UI) and
+            // place a copy inside the profile container so it displays to the right. We only alter
+            // DOM placement — no CSS or layout changes are made.
+            if (photoURL) {
+                const defaultAside = document.querySelector('#hero-default-content .hero-illustration');
+                if (defaultAside) {
+                    const asideClone = defaultAside.cloneNode(true);
+                    const main = asideClone.querySelector('.hero-illustration-main');
+                    if (main) {
+                        main.innerHTML = `<img src="${escapeHtml(photoURL)}" alt="Profile photo" style="width:100%;height:180px;object-fit:cover;border-radius:12px;">`;
+                    }
+                    // Prevent duplicate clones on repeated calls by removing any existing cloned aside
+                    const existingClone = selfProfileContainer.querySelector('.hero-illustration');
+                    if (existingClone) existingClone.remove();
+                    selfProfileContainer.appendChild(asideClone);
+                }
+                // Also ensure the top-right nav avatar shows this photo if present
+                try {
+                    const navWrap = document.getElementById('nav-avatar-photo');
+                    const navImg = document.getElementById('nav-avatar-img');
+                    const navInitial = document.getElementById('nav-avatar-initial');
+                    if (navImg && navWrap) {
+                        navImg.src = photoURL;
+                        navWrap.style.display = '';
+                        if (navInitial) navInitial.style.display = 'none';
+                    }
+                } catch (e) {
+                    // no-op
+                }
+            } else {
+                // Ensure no leftover cloned aside when there is no photo
+                const existingClone = selfProfileContainer.querySelector('.hero-illustration');
+                if (existingClone) existingClone.remove();
+            }
         } else {
             // No profile doc yet
             if (heroDefaultContent) heroDefaultContent.style.display = 'block';
