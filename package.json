@@ -1,0 +1,17 @@
+{
+  "name": "astravyn-local-dev",
+  "version": "1.0.0",
+  "description": "Local development server with subdomain support for Astravyn platform",
+  "type": "module",
+  "scripts": {
+    "proxy": "node proxy-server.js",
+    "emulator": "firebase emulators:start",
+    "dev": "echo Run 'npm run emulator' in one terminal and 'npm run proxy' in another",
+    "test:auth": "node tests/auth-flow.js"
+  },
+  "dependencies": {
+    "http-proxy": "^1.18.1"
+  },
+  "author": "",
+  "license": "ISC"
+}

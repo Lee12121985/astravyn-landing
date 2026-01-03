@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Astravyn | Landing</title>
+  <script type="module" src="/auth/firebase-config.js"></script>
+  <style>
+    @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+    :root {
+      --bg: #f8fafc;
+      --bg-soft: #eef2ff;
+      --panel: rgba(255, 255, 255, 0.82);
+      --text: #0f172a;
+      --muted: #475569;
+      --accent: #4f46e5;
+      --accent-strong: #4338ca;
+      --accent-soft: rgba(79, 70, 229, 0.12);
+      --border: rgba(148, 163, 184, 0.35);
+      --shadow: 0 22px 60px rgba(15, 23, 42, 0.12);
+      --radius: 18px;
+    }
+    * {
+      box-sizing: border-box;
+      -webkit-font-smoothing: antialiased;
+    }
+    body {
+      margin: 0;
+      font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(1200px at 10% 20%, rgba(79, 70, 229, 0.06), transparent 55%),
+        radial-gradient(900px at 80% 0%, rgba(14, 165, 233, 0.08), transparent 45%),
+        var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 16px 48px;
+    }
+    .hero {
+      width: min(1080px, 100%);
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: calc(var(--radius) + 6px);
+      padding: 32px clamp(20px, 4vw, 48px);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(14px);
+      text-align: center;
+    }
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent-strong);
+      font-weight: 600;
+      font-size: 14px;
+      letter-spacing: 0.01em;
+      border: 1px solid var(--border);
+    }
+    h1 {
+      font-size: clamp(34px, 4vw, 46px);
+      margin: 14px 0 10px;
+      letter-spacing: -0.02em;
+    }
+    p.sub {
+      margin: 0 0 26px;
+      color: var(--muted);
+      font-size: 18px;
+      line-height: 1.6;
+    }
+    .btn-row {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+    .btn {
+      padding: 13px 18px;
+      border-radius: 12px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 16px;
+      transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease, border-color 160ms ease;
+    }
+    .btn:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 4px var(--accent-soft);
+    }
+    .primary {
+      background: linear-gradient(135deg, var(--accent), #6366f1);
+      color: #fff;
+      box-shadow: 0 10px 30px rgba(79, 70, 229, 0.35);
+    }
+    .primary:hover {
+      transform: translateY(-1px);
+      background: linear-gradient(135deg, #4f46e5, #4c51d9);
+    }
+    .ghost {
+      background: transparent;
+      color: var(--accent-strong);
+      border-color: var(--border);
+    }
+    .ghost:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      transform: translateY(-1px);
+    }
+    .pill-row {
+      display: inline-flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin: 10px auto 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .pill {
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(226, 232, 240, 0.65);
+      border: 1px solid var(--border);
+    }
+    .msg {
+      margin-top: 16px;
+      color: var(--accent-strong);
+      font-weight: 600;
+      min-height: 22px;
+    }
+    @media (max-width: 640px) {
+      .hero { padding: 24px 18px; }
+      .btn { width: 100%; text-align: center; }
+      .btn-row { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <main class="hero" id="app">
+    <div class="eyebrow">Astravyn Platform</div>
+    <h1>Work beautifully across Timesheet, AI Studio, and more.</h1>
+    <p class="sub">
+      A premium, unified experience with one secure sign-in. No technical steps—just choose how you want to start.
+    </p>
+    <div class="btn-row">
+      <button id="signIn" class="btn primary">Sign in</button>
+      <button id="signUp" class="btn ghost">Create account</button>
+    </div>
+    <div class="pill-row" aria-hidden="true">
+      <span class="pill">Timesheet</span>
+      <span class="pill">AI Studio</span>
+      <span class="pill">Dating</span>
+    </div>
+    <div id="message" class="msg" role="status" aria-live="polite"></div>
+  </main>
+
+  <script type="module">
+    import { auth } from "/auth/firebase-config.js";
+    import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+
+    const msg = document.getElementById("message");
+    const signInBtn = document.getElementById("signIn");
+    const signUpBtn = document.getElementById("signUp");
+
+    function goToHub() {
+      window.location.replace("/auth/hub.html");
+    }
+
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        msg.textContent = "You're already signed in. Redirecting...";
+        goToHub();
+      } else {
+        msg.textContent = "Welcome! Choose sign in or create an account.";
+      }
+    });
+
+    signInBtn.addEventListener("click", () => {
+      window.location.href = "/auth/login.html";
+    });
+    signUpBtn.addEventListener("click", () => {
+      window.location.href = "/auth/signup.html";
+    });
+  </script>
+</body>
+</html>

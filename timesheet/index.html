@@ -1,0 +1,4773 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Attendance Details — Timesheet</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- SheetJS (needed for Excel export) -->
+  <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+  <!-- xlsx-populate (needed for template-based export with styles) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx-populate/browser/xlsx-populate.min.js"></script>
+  <!-- Firebase -->
+  <script type="module" defer>
+    import { requireAuth } from "../shared/auth-guard.js";
+    import { signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+    import { collection, doc, getDoc, getDocs, query, where, orderBy, limit, addDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+    const auth = window.firebase?.auth;
+    const db = window.firebase?.firestore;
+    if (!auth || !db) {
+      throw new Error("Firebase not initialized");
+    }
+
+    // Timesheet document helper (user-scoped)
+    const getTimesheetDocId = (uid, year, monthIndex) => `${uid}_${year}_${monthIndex}`;
+    window.getTimesheetDocId = getTimesheetDocId;
+
+    window.firebase = window.firebase || {};
+    window.firebaseAuth = auth;
+    window.firebaseDb = db;
+    window.firebase.firestoreFunctions = { collection, doc, getDoc, getDocs, query, where, orderBy, limit, addDoc, setDoc, serverTimestamp };
+    window.getFirestoreCollection = (collectionName) => collection(db, collectionName);
+
+    let currentUser = null;
+    let currentUserId = null;
+    let currentUserEmail = null;
+
+    // Helpers for auth status UI
+    function setUserStatus(user) {
+      const statusEl = document.getElementById('userStatus');
+      if (!statusEl) return;
+      const isLoggedIn = !!user;
+      const dotColor = isLoggedIn ? '#10b981' : '#f59e0b';
+      
+      if (isLoggedIn) {
+        const emailLocal = (user.email || '').split('@')[0];
+        const name = user.displayName || emailLocal || 'User';
+        const photoURL = user.photoURL;
+        const initial = name.charAt(0).toUpperCase();
+        
+        statusEl.innerHTML = `
+          <span class="status-dot" style="background:${dotColor}"></span>
+          ${photoURL 
+            ? `<img src="${photoURL}" alt="avatar" style="width:24px;height:24px;border-radius:50%;object-fit:cover;margin-right:4px;" />`
+            : `<div style="width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#06b6d4);display:inline-flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:11px;margin-right:4px;">${initial}</div>`
+          }
+          <span class="status-text">${name}</span>
+          <button id="logoutBtn" class="logout-btn" title="Sign out" style="margin-left:8px;padding:4px 10px;background:#ef4444;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:500;transition:background 0.2s;">
+            Logout
+          </button>
+        `;
+
+        // Attach logout function to the button
+        const logoutBtn = document.getElementById('logoutBtn');
+        if (logoutBtn) {
+          logoutBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            try {
+              await signOut(auth);
+            } catch (err) {
+              console.error('Logout error:', err);
+              if (typeof showToast === 'function') {
+                showToast('Failed to sign out: ' + err.message, 'error');
+              }
+            }
+          });
+        }
+      } else {
+        statusEl.innerHTML = `<span class="status-dot" style="background:${dotColor}"></span><span class="status-text">Not logged in</span>`;
+      }
+    }
+
+    // Load timesheet on auth state change
+    requireAuth(async (user) => {
+      currentUser = user;
+      currentUserId = user.uid;
+      currentUserEmail = user.email || '';
+      setUserStatus(user);
+
+      // Prefer the authenticated user's name for the form/header, without showing full email
+      const displayName = user.displayName?.trim();
+      const emailLocal = (user.email || '').split('@')[0];
+      const preferredName = displayName || emailLocal || 'User';
+      window.__authPreferredName = preferredName;
+
+      const timesheetState = window.__timesheetState;
+      const inputName = document.getElementById('inputName');
+      const summaryName = document.getElementById('summaryName');
+      const shouldApplyPreferred = timesheetState && !timesheetState.name;
+
+      if (timesheetState && shouldApplyPreferred) {
+        timesheetState.name = preferredName;
+      }
+      if (inputName && (!inputName.value || inputName.value === 'Aarav Kiran')) {
+        inputName.value = preferredName;
+      }
+      if (summaryName && preferredName && shouldApplyPreferred) {
+        summaryName.textContent = preferredName;
+      }
+      showPageLoader('Loading timesheet...');
+
+      const userId = user.uid;
+      const userEmail = user.email || '';
+
+      setTimeout(() => {
+        if (typeof loadSavedTimesheetsCount === 'function' && userId) {
+          loadSavedTimesheetsCount(userId);
+        }
+      }, 100);
+
+      setTimeout(async () => {
+        const state = window.__timesheetState;
+        if (!state) {
+          hidePageLoader();
+          return;
+        }
+
+        let loadedFromPrimary = false;
+        try {
+          const { doc, getDoc, setDoc, serverTimestamp } = window.firebase.firestoreFunctions;
+
+          const empId = state.empId || '';
+          const docId = getTimesheetDocId(userId, state.year, state.monthIndex);
+          const ref = doc(db, 'timesheets', docId);
+          const snap = await getDoc(ref);
+
+          if (snap.exists()) {
+            const data = snap.data();
+            if (data.statusMap && typeof data.statusMap === 'object') {
+              loadedFromPrimary = true;
+              state.statusMap = { ...data.statusMap };
+              if (data.commentsMap && typeof data.commentsMap === 'object') {
+                state.commentsMap = { ...data.commentsMap };
+              }
+              if (data.employeeName) state.name = data.employeeName;
+              if (data.company) state.company = data.company;
+              if (data.employeeId) state.empId = data.employeeId;
+
+              const inputName = document.getElementById('inputName');
+              const inputCompany = document.getElementById('inputCompany');
+              const inputEmpId = document.getElementById('inputEmpId');
+              if (inputName && data.employeeName) inputName.value = data.employeeName;
+              if (inputCompany && data.company) inputCompany.value = data.company;
+              if (inputEmpId && data.employeeId) inputEmpId.value = data.employeeId;
+
+              console.log(`Timesheet loaded: ${docId} for user ${userEmail || userId}`);
+
+              if (window.__renderCalendar) {
+                window.__renderCalendar();
+              }
+
+              if (window.__updateSummaryAndReport) {
+                window.__updateSummaryAndReport();
+              }
+            }
+          } else {
+            console.log(`No timesheet found for ${docId}, trying legacy and fallback`);
+            // Legacy docId based on employeeId
+            if (empId) {
+              const legacyDocId = `${empId}_${state.year}_${state.monthIndex}`;
+              try {
+                const legacyRef = doc(db, 'timesheets', legacyDocId);
+                const legacySnap = await getDoc(legacyRef);
+                if (legacySnap.exists()) {
+                  const legacyData = legacySnap.data();
+                  const migratedData = {
+                    ...legacyData,
+                    userId,
+                    userEmail,
+                    employeeId: legacyData.employeeId || empId,
+                    employeeName: legacyData.employeeName || state.name || '',
+                    company: legacyData.company || state.company || '',
+                    savedAt: legacyData.savedAt || (serverTimestamp ? serverTimestamp() : new Date()),
+                    updatedAt: serverTimestamp ? serverTimestamp() : new Date()
+                  };
+                  await setDoc(ref, migratedData, { merge: true });
+                  console.log(`Migrated legacy timesheet ${legacyDocId} -> ${docId}`);
+                  await loadTimesheetFromSaved(docId);
+                  loadedFromPrimary = true;
+                }
+              } catch (legacyErr) {
+                console.warn('Legacy load failed:', legacyErr);
+              }
+            }
+          }
+        } catch (err) {
+          if (err && err.code === 'permission-denied') {
+            console.error('Permission denied loading timesheet:', {
+              user: user ? { uid: user.uid, email: user.email } : 'No user',
+              error: err.message,
+              code: err.code
+            });
+            showToast('Could not load saved timesheet. You can start a new one and save.', 'info', 4000);
+          } else {
+            console.error('Error loading timesheet on auth:', err);
+          }
+        }
+
+        if (!loadedFromPrimary) {
+          try {
+            const fallbackDocId = await loadLatestTimesheetForUser(userId, state.empId);
+            if (fallbackDocId) {
+              await loadTimesheetFromSaved(fallbackDocId);
+              loadedFromPrimary = true;
+            } else {
+              console.log('No saved timesheet found for user, staying empty');
+            }
+          } catch (fallbackErr) {
+            console.warn('Fallback load failed:', fallbackErr);
+          }
+        }
+
+        hidePageLoader();
+      }, 500);
+    });
+
+    console.log('Firebase initialized');
+  </script>
+
+  <script>
+    // Toast notification system
+    function showToast(message, type = 'info', duration = 3000) {
+      const container = document.getElementById('toastContainer');
+      if (!container) {
+        // Fallback to alert if container doesn't exist
+        alert(message);
+        return;
+      }
+
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+
+      const icons = {
+        success: '✅',
+        error: '❌',
+        info: 'ℹ️',
+        warning: '⚠️'
+      };
+
+      toast.innerHTML = `
+        <span class="toast-icon">${icons[type] || icons.info}</span>
+        <span class="toast-content">${message}</span>
+        <button class="toast-close" onclick="this.parentElement.remove()">×</button>
+      `;
+
+      container.appendChild(toast);
+
+      // Auto remove after duration
+      if (duration > 0) {
+        setTimeout(() => {
+          toast.classList.add('hiding');
+          setTimeout(() => {
+            if (toast.parentElement) {
+              toast.remove();
+            }
+          }, 300);
+        }, duration);
+      }
+
+      return toast;
+    }
+
+    // Make toast function globally available
+    window.showToast = showToast;
+
+    // Permission modal helpers
+    function showPermissionModal(message = 'You do not have permission to perform this action.') {
+      const modal = document.getElementById('permissionModal');
+      const messageEl = document.getElementById('permissionMessage');
+
+      if (!modal || !messageEl) {
+        if (window.showToast) {
+          window.showToast(message, 'error', 5000);
+        } else {
+          alert(message);
+        }
+        return;
+      }
+
+      messageEl.textContent = message;
+      modal.classList.add('visible');
+      modal.setAttribute('aria-hidden', 'false');
+    }
+
+    function hidePermissionModal() {
+      const modal = document.getElementById('permissionModal');
+      if (!modal) return;
+      modal.classList.remove('visible');
+      modal.setAttribute('aria-hidden', 'true');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const modal = document.getElementById('permissionModal');
+      const closeBtn = document.getElementById('permissionClose');
+      const okBtn = document.getElementById('permissionOk');
+
+      if (closeBtn) closeBtn.addEventListener('click', hidePermissionModal);
+      if (okBtn) okBtn.addEventListener('click', hidePermissionModal);
+      if (modal) {
+        modal.addEventListener('click', (evt) => {
+          if (evt.target === modal) hidePermissionModal();
+        });
+      }
+    });
+
+    // Confirmation modal helpers
+    function showConfirmModal(options = {}) {
+      const {
+        title = 'Confirm',
+        message = 'Are you sure?',
+        confirmText = 'OK',
+        cancelText = 'Cancel'
+      } = options;
+
+      const modal = document.getElementById('confirmModal');
+      const titleEl = document.getElementById('confirmTitle');
+      const messageEl = document.getElementById('confirmMessage');
+      const okBtn = document.getElementById('confirmOk');
+      const cancelBtn = document.getElementById('confirmCancel');
+      const closeBtn = document.getElementById('confirmClose');
+
+      if (!modal || !titleEl || !messageEl || !okBtn || !cancelBtn) {
+        return Promise.resolve(confirm(message));
+      }
+
+      titleEl.textContent = title;
+      messageEl.textContent = message;
+      okBtn.textContent = confirmText;
+      cancelBtn.textContent = cancelText;
+
+      modal.classList.add('visible');
+      modal.setAttribute('aria-hidden', 'false');
+
+      const previouslyFocused = document.activeElement;
+      const focusPrimary = () => {
+        if (okBtn && typeof okBtn.focus === 'function') {
+          okBtn.focus();
+        }
+      };
+
+      return new Promise((resolve) => {
+        const cleanup = (result) => {
+          modal.classList.remove('visible');
+          modal.setAttribute('aria-hidden', 'true');
+          modal.removeEventListener('click', handleBackdrop);
+          document.removeEventListener('keydown', handleKeydown);
+          okBtn.removeEventListener('click', handleOk);
+          cancelBtn.removeEventListener('click', handleCancel);
+          if (closeBtn) closeBtn.removeEventListener('click', handleCancel);
+          if (previouslyFocused && typeof previouslyFocused.focus === 'function') {
+            setTimeout(() => previouslyFocused.focus(), 0);
+          }
+          resolve(result);
+        };
+
+        const handleOk = () => cleanup(true);
+        const handleCancel = () => cleanup(false);
+        const handleBackdrop = (evt) => {
+          if (evt.target === modal) cleanup(false);
+        };
+        const handleKeydown = (evt) => {
+          if (evt.key === 'Escape') {
+            evt.preventDefault();
+            cleanup(false);
+          }
+          if (evt.key === 'Enter') {
+            if (document.activeElement === cancelBtn) return;
+            cleanup(true);
+          }
+        };
+
+        okBtn.addEventListener('click', handleOk);
+        cancelBtn.addEventListener('click', handleCancel);
+        if (closeBtn) closeBtn.addEventListener('click', handleCancel);
+        modal.addEventListener('click', handleBackdrop);
+        document.addEventListener('keydown', handleKeydown);
+
+        setTimeout(focusPrimary, 0);
+      });
+    }
+
+    // Expose globally
+    window.showPermissionModal = showPermissionModal;
+    window.showConfirmModal = showConfirmModal;
+
+    function showCommentModal(options = {}) {
+      const {
+        title = 'Add comment',
+        description = 'Add a comment for this date.',
+        initialText = ''
+      } = options;
+
+      const modal = document.getElementById('commentModal');
+      const titleEl = document.getElementById('commentTitle');
+      const messageEl = document.getElementById('commentMessage');
+      const textarea = document.getElementById('commentTextarea');
+      const saveBtn = document.getElementById('commentSave');
+      const cancelBtn = document.getElementById('commentCancel');
+      const closeBtn = document.getElementById('commentClose');
+
+      if (!modal || !titleEl || !messageEl || !textarea || !saveBtn || !cancelBtn) {
+        return Promise.resolve(prompt(description, initialText));
+      }
+
+      titleEl.textContent = title;
+      messageEl.textContent = description;
+      textarea.value = initialText || '';
+
+      modal.classList.add('visible');
+      modal.setAttribute('aria-hidden', 'false');
+
+      const previouslyFocused = document.activeElement;
+
+      return new Promise((resolve) => {
+        const cleanup = (result) => {
+          modal.classList.remove('visible');
+          modal.setAttribute('aria-hidden', 'true');
+          modal.removeEventListener('click', handleBackdrop);
+          document.removeEventListener('keydown', handleKeydown);
+          saveBtn.removeEventListener('click', handleSave);
+          cancelBtn.removeEventListener('click', handleCancel);
+          if (closeBtn) closeBtn.removeEventListener('click', handleCancel);
+          if (previouslyFocused && typeof previouslyFocused.focus === 'function') {
+            setTimeout(() => previouslyFocused.focus(), 0);
+          }
+          resolve(result);
+        };
+
+        const handleSave = () => cleanup(textarea.value);
+        const handleCancel = () => cleanup(null);
+        const handleBackdrop = (evt) => {
+          if (evt.target === modal) cleanup(null);
+        };
+        const handleKeydown = (evt) => {
+          if (evt.key === 'Escape') {
+            evt.preventDefault();
+            cleanup(null);
+          }
+          if (evt.key === 'Enter' && evt.ctrlKey) {
+            cleanup(textarea.value);
+          }
+        };
+
+        saveBtn.addEventListener('click', handleSave);
+        cancelBtn.addEventListener('click', handleCancel);
+        if (closeBtn) closeBtn.addEventListener('click', handleCancel);
+        modal.addEventListener('click', handleBackdrop);
+        document.addEventListener('keydown', handleKeydown);
+
+        setTimeout(() => textarea.focus(), 0);
+      });
+    }
+
+    window.showCommentModal = showCommentModal;
+
+    // Lightweight page loader (prevents flashing on slow connections)
+    function ensurePageLoader() {
+      let loader = document.getElementById('pageLoader');
+      if (!loader) {
+        loader = document.createElement('div');
+        loader.id = 'pageLoader';
+        loader.className = 'page-loader';
+        loader.innerHTML = `
+          <div class="box" role="status" aria-live="polite">
+            <div class="spinner" aria-hidden="true"></div>
+            <div class="text">Loading...</div>
+          </div>
+        `;
+        document.body.appendChild(loader);
+      }
+      return loader;
+    }
+
+    function showPageLoader(text = 'Loading...') {
+      const loader = ensurePageLoader();
+      const textEl = loader.querySelector('.text');
+      if (textEl) textEl.textContent = text;
+      loader.classList.add('visible');
+      document.body.classList.add('page-loader-active');
+    }
+
+    function hidePageLoader() {
+      const loader = document.getElementById('pageLoader');
+      if (loader) loader.classList.remove('visible');
+      document.body.classList.remove('page-loader-active');
+    }
+
+    const getTimezone = () => {
+      try {
+        return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+      } catch {
+        return 'UTC';
+      }
+    };
+
+    async function upsertUserProfile(user, state = {}) {
+      try {
+        const db = window.firebaseDb;
+        const fns = window.firebase?.firestoreFunctions;
+        if (!user || !db || !fns) return;
+        const { doc, getDoc, setDoc, serverTimestamp } = fns;
+
+        const ref = doc(db, 'users', user.uid);
+        let createdAt = null;
+        try {
+          const snap = await getDoc(ref);
+          if (snap.exists()) {
+            createdAt = snap.data()?.createdAt || null;
+          }
+        } catch (err) {
+          console.warn('[Timesheet] user doc read skipped:', err?.message || err);
+        }
+
+        const profile = {
+          uid: user.uid,
+          email: user.email || '',
+          name: user.displayName || state.name || '',
+          company: state.company || '',
+          employeeId: state.empId || '',
+          timezone: state.timezone || getTimezone(),
+          updatedAt: serverTimestamp ? serverTimestamp() : new Date()
+        };
+        if (!createdAt) {
+          profile.createdAt = serverTimestamp ? serverTimestamp() : new Date();
+        }
+
+        await setDoc(ref, profile, { merge: true });
+      } catch (err) {
+        console.warn('[Timesheet] upsertUserProfile failed:', err?.message || err);
+      }
+    }
+  </script>
+
+  <style>
+    :root {
+      --bg: #f5f7fa;
+      --card: #fff;
+      --muted: #6b7280;
+      --neon-cyan: #06b6d4;
+      --neon-green: #10B981;
+      --neon-orange: #F59E0B;
+      --radius: 12px;
+    --shadow-sm: 0 4px 10px rgba(15, 23, 42, 0.08);
+    --shadow-md: 0 8px 20px rgba(15, 23, 42, 0.12);
+      font-family: "Inter", system-ui, Roboto, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: #111827;
+      font-family: Inter, system-ui, Roboto, sans-serif;
+      padding-top: 44px;
+    }
+
+    .top-nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 30;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 18px;
+      background: #fff;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .nav-brand {
+      font-weight: 700;
+      font-size: 16px;
+      letter-spacing: 0.2px;
+      color: #0f172a;
+    }
+
+    .nav-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .nav-user {
+      font-size: 13px;
+      color: #0f1724;
+      background: #f3f4f6;
+      padding: 8px 12px;
+      border-radius: 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Global page loader */
+    .page-loader {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.08);
+      backdrop-filter: blur(2px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1400;
+    }
+    .page-loader.visible {
+      display: flex;
+    }
+    .page-loader .box {
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 18px 20px;
+      box-shadow: 0 15px 40px rgba(15, 23, 42, 0.14);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 220px;
+    }
+    .page-loader .spinner {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 3px solid #e5e7eb;
+      border-top-color: #06b6d4;
+      animation: spin 0.8s linear infinite;
+    }
+    .page-loader .text {
+      font-weight: 600;
+      color: #0f172a;
+      font-size: 14px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .toolbar-container {
+      max-width: 1180px;
+      margin: 8px auto 12px auto;
+      padding: 12px 18px;
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .container {
+      max-width: 1180px;
+      margin: 0 auto 28px auto;
+      padding: 18px
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: 0 12px 36px rgba(11, 15, 25, .06);
+      padding: 18px
+    }
+
+    .layout {
+      display: flex;
+      gap: 18px;
+      align-items: flex-start
+    }
+
+    .clock-container {
+      width: 160px;
+      height: auto;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 20px;
+      color: #fff;
+      font-weight: 700;
+      box-shadow: 0 15px 45px rgba(102, 126, 234, 0.4), 0 5px 15px rgba(0, 0, 0, 0.1);
+      font-family: 'Courier New', monospace;
+      flex-shrink: 0;
+      position: relative;
+      border: 2px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .controls-inline {
+      display: flex;
+      gap: 12px;
+      row-gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .left {
+      flex: 1
+    }
+
+    .right {
+      width: 360px
+    }
+
+    .calendar {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 14px;
+      padding: 8px
+    }
+
+    .day {
+      position: relative;
+      min-height: 96px;
+      aspect-ratio: 1 / 1;
+      border-radius: 18px;
+      border: 1px solid #e5e7eb;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(180deg, #ffffff 0%, #f6f9fc 100%);
+      box-shadow: 0 8px 22px rgba(15, 23, 42, 0.10);
+      cursor: pointer;
+      padding-top: 8px;
+      padding-bottom: 14px;
+      transition: transform 120ms ease, box-shadow 120ms ease;
+    }
+
+    .day:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16);
+    }
+
+    .day.hidden {
+      visibility: hidden;
+      pointer-events: none;
+      background: transparent;
+      border: none
+    }
+
+    .num {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      font-weight: 800;
+      font-size: 15px;
+      color: #0f172a;
+    }
+
+    .comment-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 22px;
+      height: 22px;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      font-size: 14px;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      color: #16a34a;
+      transition: color 0.2s ease;
+    }
+
+    .comment-btn svg {
+      width: 16px;
+      height: 16px;
+      display: block;
+    }
+
+    .comment-btn.has-comment {
+      color: #15803d;
+    }
+
+    .comment-sample {
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      bottom: 52px;
+      font-size: 11px;
+      color: rgba(15, 23, 42, 0.8);
+      background: transparent;
+      border: none;
+      padding: 0;
+      display: none;
+      max-height: 22px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      pointer-events: none;
+      text-align: left;
+      font-weight: 400;
+      line-height: 1.2;
+    }
+
+    .comment-sample.has-comment {
+      display: block;
+    }
+
+    .pillWrap {
+      position: absolute;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .pill {
+      padding: 6px 12px;
+      border-radius: 12px;
+      font-weight: 800;
+      font-size: 11px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 40px;
+      min-height: 30px;
+      width: calc(100% - 16px);
+      max-width: 100%;
+      box-shadow: 0 8px 18px rgba(0, 0, 0, 0.10);
+      white-space: nowrap;
+      background: #10b981;
+      color: #0f172a;
+      letter-spacing: 0.2px;
+    }
+
+    .pill.C { background: #3b82f6; color: #fff; }
+    .pill.L { background: #f59e0b; color: #2f1600; }
+    .pill.H,
+    .pill.ST,
+    .pill.SU { background: #9ca3af; color: #fff; }
+
+    .pill.P {
+      background: var(--neon-green);
+      color: #042812
+    }
+
+    .pill.C {
+      background: #3b82f6;
+      color: #fff
+    }
+
+    .pill.L {
+      background: var(--neon-orange);
+      color: #2f1600
+    }
+
+    .pill.H,
+    .pill.ST,
+    .pill.SU {
+      background: #9ca3af;
+      color: #fff
+    }
+
+    .weekday-row {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 8px;
+      margin-bottom: 12px
+    }
+
+    .weekday {
+      font-size: 13px;
+      color: var(--muted);
+      text-align: center;
+      font-weight: 700
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      border-radius: 8px;
+      overflow: hidden
+    }
+
+    th,
+    td {
+      border: 1px solid #eff3f6;
+      padding: 8px;
+      text-align: center;
+      font-size: 13px;
+      background: #fff
+    }
+
+    th {
+      background: #fbfbfc;
+      font-weight: 700
+    }
+
+    .legend {
+      display: flex;
+      gap: 18px;
+      align-items: center;
+      margin-top: 18px
+    }
+
+    .btn-square {
+      border-radius: 10px;
+      min-width: 38px;
+      width: 38px;
+      height: 38px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+    }
+
+    .small {
+      font-size: 13px;
+      color: var(--muted)
+    }
+
+    .top-toolbar {
+      display: flex;
+      gap: 8px;
+      row-gap: 8px;
+      align-items: center;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+    }
+
+    .btn-3d {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      min-height: 40px;
+      border-radius: 12px;
+      border: none;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 13px;
+      line-height: 1.1;
+    }
+
+    .btn-accent {
+      background: linear-gradient(180deg, #06b6d4, #0596ab);
+      color: #fff;
+      box-shadow: 0 6px 18px rgba(6, 182, 212, .14)
+    }
+
+    .btn-flat {
+      background: #fff;
+      color: #0f1724;
+      border: 1px solid #e6edf2;
+      padding: 10px 16px;
+      min-height: 40px;
+      border-radius: 12px;
+    }
+
+    .btn-control {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 9px 14px;
+      border-radius: 12px;
+      border: none;
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+      white-space: nowrap;
+      min-height: 38px;
+      box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08);
+    }
+
+    .btn-weekends {
+      background: linear-gradient(180deg, #10b981, #059669);
+      color: #fff
+    }
+
+    /* Better spacing for month/year controls */
+    .month-nav {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .month-nav label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin: 0;
+      white-space: nowrap;
+    }
+
+    .month-nav label span {
+      min-width: 50px;
+    }
+
+    .btn-clear {
+      background: linear-gradient(180deg, #fbbf24, #f59e0b);
+      color: #fff
+    }
+
+    .template-select {
+      padding: .5rem .9rem;
+      border-radius: 9999px;
+      border: 1px solid var(--neon-cyan);
+      background: rgba(5, 11, 20, .03);
+      color: var(--neon-cyan);
+      font-size: 13px
+    }
+
+    .btn-upload {
+      background: transparent;
+      border: 1px dashed var(--neon-cyan);
+      color: var(--neon-cyan);
+      padding: .55rem 1rem;
+      border-radius: 9999px;
+      cursor: pointer;
+      font-size: 13px;
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+      font-weight: 700;
+      text-transform: uppercase
+    }
+
+    /* Toggle active state for weekend color button */
+    .btn-control.active {
+      box-shadow: 0 6px 18px rgba(6, 182, 212, 0.12);
+      border: 1px solid rgba(6, 182, 212, 0.12);
+    }
+
+    .btn-upload input {
+      display: none
+    }
+
+    .status-cell {
+      font-weight: 700;
+      border-left: 4px solid transparent
+    }
+
+    .status-cell.P {
+      background: linear-gradient(180deg, rgba(52, 199, 89, 0.18), rgba(52, 199, 89, 0.06));
+      color: #024d1a;
+      border-left-color: #28a745
+    }
+
+    .status-cell.C {
+      background: linear-gradient(180deg, rgba(59, 130, 246, 0.18), rgba(59, 130, 246, 0.06));
+      color: #06326f;
+      border-left-color: #3b82f6
+    }
+
+    .status-cell.L {
+      background: linear-gradient(180deg, rgba(245, 158, 11, 0.18), rgba(245, 158, 11, 0.06));
+      color: #5c3a00;
+      border-left-color: #f59e0b
+    }
+
+    .status-cell.H,
+    .status-cell.ST,
+    .status-cell.SU {
+      background: linear-gradient(180deg, rgba(156, 163, 175, 0.18), rgba(156, 163, 175, 0.06));
+      color: #1e1e1e;
+      border-left-color: #9ca3af
+    }
+
+    .icon-btn {
+      width: 40px;
+      height: 40px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 10px;
+      border: 1px solid #e6edf2;
+      background: #fff;
+      cursor: pointer;
+      box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+    }
+
+    /* ============================
+       BUTTON STYLE ENHANCEMENTS
+       (SAFE OVERRIDES ONLY)
+    ============================ */
+
+    /* Base button refinement */
+    .btn {
+      height: 40px;
+      padding: 0 20px;
+      border-radius: 12px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+      box-shadow: var(--shadow-sm);
+      transition:
+        background-color 0.2s ease,
+        box-shadow 0.2s ease,
+        transform 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border: none;
+      cursor: pointer;
+      font-size: 13px;
+      line-height: 1.1;
+    }
+
+    /* Hover effect */
+    .btn:hover {
+      box-shadow: var(--shadow-md);
+      transform: translateY(-1px);
+    }
+
+    /* Active (click) */
+    .btn:active {
+      transform: translateY(0);
+      box-shadow: var(--shadow-sm);
+    }
+
+    /* PRIMARY ACTIONS */
+    .btn-save,
+    .btn-send {
+      background: linear-gradient(135deg, #0ea5e9, #0284c7);
+      color: #fff;
+    }
+    .btn-save:hover,
+    .btn-send:hover {
+      background: linear-gradient(135deg, #0284c7, #0369a1);
+    }
+
+    /* TEAL / TEMPLATE BUTTON */
+    .btn-teal {
+      background: linear-gradient(135deg, #0d9488, #0f766e);
+      color: #fff;
+    }
+    .btn-teal:hover {
+      background: linear-gradient(135deg, #0f766e, #115e59);
+    }
+
+    /* SECONDARY / NEUTRAL */
+    .btn-default {
+      background: #ffffff;
+      border: 1px solid var(--border, #e6edf2);
+      color: var(--text-main, #0f172a);
+    }
+    .btn-default:hover {
+      background: #f8fafc;
+      border-color: #cbd5e1;
+    }
+
+    /* TOOL BUTTONS */
+    .btn-working {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: #fff;
+    }
+    .btn-working:hover {
+      background: linear-gradient(135deg, #059669, #047857);
+    }
+
+    .btn-weekend {
+      background: #f1f5f9;
+      border: 1px solid var(--border, #e6edf2);
+      color: #0f172a;
+    }
+    .btn-weekend:hover {
+      background: #e2e8f0;
+    }
+
+    .btn-clear {
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      color: #fff;
+    }
+    .btn-clear:hover {
+      background: linear-gradient(135deg, #d97706, #b45309);
+    }
+
+    /* BACK BUTTON POLISH */
+    .btn-back {
+      border-radius: 12px;
+      font-weight: 700;
+      background: #fff;
+      border: 1px solid #e6edf2;
+      color: #0f172a;
+    }
+    .btn-back:hover {
+      background: #f8fafc;
+      box-shadow: var(--shadow-md);
+    }
+
+    /* --- Compact, readable buttons (CSS-only overrides) --- */
+    .btn,
+    .btn-3d,
+    .btn-control,
+    .btn-default,
+    .btn-working,
+    .btn-clear,
+    .btn-teal,
+    .btn-save,
+    .btn-send {
+      min-height: 34px;
+      height: 34px;
+      padding: 0 10px;
+      border-radius: 10px;
+      white-space: nowrap;
+      font-size: 13px;
+    }
+
+    .icon-btn {
+      min-width: 40px;
+      width: 40px;
+      height: 34px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    /* Center text inside all shared button variants */
+    .btn,
+    .btn-3d,
+    .btn-control,
+    .btn-default,
+    .btn-working,
+    .btn-clear,
+    .btn-teal,
+    .btn-save,
+    .btn-send,
+    .icon-btn {
+      text-align: center;
+    }
+
+    /* Prevent flex shrink in controls row */
+    .controls-inline .btn,
+    .controls-inline .icon-btn {
+      flex: 0 0 auto;
+    }
+
+    /* Controls buttons text alignment fix */
+    .controls-inline .btn {
+      min-height: 34px;
+      padding: 0 14px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      white-space: nowrap;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    @media (max-width:900px) {
+      .layout {
+        flex-direction: column
+      }
+
+      .right {
+        width: 100%
+      }
+    }
+
+    /* make the calendar scroll nicely when it grows */
+    #calendar {
+      min-height: 260px
+    }
+
+    /* Toast notification styles */
+    .toast-container {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 10000;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 10px;
+      pointer-events: none;
+    }
+
+    .toast {
+      background: #fff;
+      border-radius: 8px;
+      padding: 14px 18px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 300px;
+      max-width: 400px;
+      pointer-events: auto;
+      animation: slideInRight 0.3s ease-out;
+      border-left: 4px solid #3b82f6;
+    }
+
+    .toast.success {
+      border-left-color: #10b981;
+    }
+
+    .toast.error {
+      border-left-color: #ef4444;
+    }
+
+    .toast.info {
+      border-left-color: #3b82f6;
+    }
+
+    .toast.warning {
+      border-left-color: #f59e0b;
+    }
+
+    .toast-icon {
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+
+    .toast-content {
+      flex: 1;
+      font-size: 14px;
+      color: #111827;
+      line-height: 1.4;
+    }
+
+    .toast-close {
+      background: none;
+      border: none;
+      font-size: 18px;
+      color: #6b7280;
+      cursor: pointer;
+      padding: 0;
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .toast-close:hover {
+      color: #111827;
+    }
+
+    @keyframes slideInRight {
+      from {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+
+    @keyframes slideOutRight {
+      from {
+        transform: translateX(0);
+        opacity: 1;
+      }
+
+      to {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+    }
+
+    .toast.hiding {
+      animation: slideOutRight 0.3s ease-out forwards;
+    }
+
+    /* Permission + confirm + comment modals */
+    .permission-modal,
+    .confirm-modal,
+    .comment-modal {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.45);
+      z-index: 10010;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+
+    .permission-modal.visible,
+    .confirm-modal.visible,
+    .comment-modal.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .permission-dialog,
+    .confirm-dialog,
+    .comment-dialog {
+      background: #fff;
+      border-radius: 12px;
+      padding: 20px;
+      max-width: 420px;
+      width: calc(100% - 32px);
+      box-shadow: 0 20px 45px rgba(15, 23, 42, 0.18);
+      border: 1px solid #e5e7eb;
+    }
+
+    .permission-header,
+    .confirm-header,
+    .comment-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .permission-title,
+    .confirm-title,
+    .comment-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #111827;
+    }
+
+    .permission-close,
+    .confirm-close,
+    .comment-close {
+      border: none;
+      background: transparent;
+      font-size: 20px;
+      color: #6b7280;
+      cursor: pointer;
+      padding: 0;
+      line-height: 1;
+    }
+
+    .permission-close:hover,
+    .confirm-close:hover,
+    .comment-close:hover {
+      color: #111827;
+    }
+
+    .permission-message,
+    .confirm-message,
+    .comment-message {
+      font-size: 14px;
+      color: #374151;
+      margin: 0 0 16px 0;
+      line-height: 1.5;
+    }
+
+    .permission-actions,
+    .confirm-actions,
+    .comment-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .comment-textarea {
+      width: 100%;
+      min-height: 110px;
+      border-radius: 10px;
+      border: 1px solid #d1d5db;
+      padding: 10px 12px;
+      font-size: 14px;
+      resize: vertical;
+      background: #f9fafb;
+      color: #0f172a;
+      outline: none;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      margin-bottom: 12px;
+    }
+
+    .comment-textarea:focus {
+      border-color: #10b981;
+      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18);
+      background: #fff;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Permission modal -->
+  <div class="permission-modal" id="permissionModal" aria-hidden="true" role="dialog" aria-modal="true">
+    <div class="permission-dialog">
+      <div class="permission-header">
+        <span class="permission-title">Permission required</span>
+        <button class="permission-close" id="permissionClose" aria-label="Close permission message">×</button>
+      </div>
+      <p class="permission-message" id="permissionMessage">You do not have permission to perform this action.</p>
+      <div class="permission-actions">
+        <button class="btn btn-default" id="permissionOk">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Clear month confirmation modal -->
+  <div class="confirm-modal" id="confirmModal" aria-hidden="true" role="dialog" aria-modal="true">
+    <div class="confirm-dialog">
+      <div class="confirm-header">
+        <span class="confirm-title" id="confirmTitle">Please confirm</span>
+        <button class="confirm-close" id="confirmClose" aria-label="Close confirmation dialog">×</button>
+      </div>
+      <p class="confirm-message" id="confirmMessage">Clear all statuses for this month?</p>
+      <div class="confirm-actions">
+        <button class="btn btn-default" id="confirmCancel">Keep statuses</button>
+        <button class="btn btn-teal" id="confirmOk">Yes, clear</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Comment modal -->
+  <div class="comment-modal" id="commentModal" aria-hidden="true" role="dialog" aria-modal="true">
+    <div class="comment-dialog">
+      <div class="comment-header">
+        <span class="comment-title" id="commentTitle">Add comment</span>
+        <button class="comment-close" id="commentClose" aria-label="Close comment dialog">×</button>
+      </div>
+      <p class="comment-message" id="commentMessage">Add a comment for this date.</p>
+      <textarea class="comment-textarea" id="commentTextarea" placeholder="Add comment for this date"></textarea>
+      <div class="comment-actions">
+        <button class="btn btn-default" id="commentCancel">Cancel</button>
+        <button class="btn btn-teal" id="commentSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast notification container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <header class="top-nav">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <button id="btnBack" class="btn btn-default btn-back" title="Go back">
+        <span style="font-size:18px">&lt;</span>
+      </button>
+      <div class="nav-brand">Astravyn Time</div>
+    </div>
+    <div class="nav-right">
+      <div id="userStatus" class="nav-user">
+        <span class="status-dot" style="background:#d1d5db"></span>
+        <span class="status-text">Checking login…</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="toolbar-container">
+    <select id="templateSelect"
+      style="padding:8px 12px;border-radius:8px;border:1px solid #d1d5db;background:#fff;font-size:14px;cursor:pointer;min-width:180px">
+      <option value="indian_skp">Indian Standard</option>
+      <option value="us_standard">US Standard</option>
+      <option value="uk_standard">UK Standard</option>
+      <option value="iso_8601">ISO 8601 Format</option>
+      <option value="european">European Format</option>
+      <option value="payroll">Payroll Format</option>
+    </select>
+    <button id="btnExportSKP" class="btn btn-teal" title="Export Indian Standard" style="display:none">Export
+      Indian Standard</button>
+    <button id="btnExportTemplate" class="btn btn-teal" title="Export with Selected Template">Export w/ Template</button>
+    <button id="btnExport" class="btn btn-default" title="Export as Excel (.xlsx)">Export Excel</button>
+    <button id="btnExportCSV" class="btn btn-default" title="Export as CSV (.csv)">Export CSV</button>
+    <button id="btnSaveTimesheetTop" class="btn btn-save" title="Save current timesheet">Save
+      Timesheet</button>
+    <button id="btnSendTop" class="btn btn-send" title="Open send dialog">Send</button>
+    <a href="/timesheet/auto-signin-features.html" class="btn btn-default" title="Auto Sign-In Premium Features" style="text-decoration:none;margin-left:auto;">Auto Sign-In</a>
+  </div>
+
+  <div class="container">
+    <div class="card">
+      <div style="margin-bottom:12px">
+        <h2 style="margin:0;font-size:20px">Attendance Details — <span id="headingMonth">October 2025</span></h2>
+      </div>
+
+      <div style="display:flex;gap:18px;margin-bottom:16px">
+        <div class="card" style="flex:1;margin:0">
+          <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start">
+            <label style="min-width:220px">Company Name
+              <input id="inputCompany" value="NovaEdge Technologies"
+                style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #d1d5db">
+            </label>
+            <label style="min-width:220px">Employee Name
+              <input id="inputName" value=""
+                style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #d1d5db">
+            </label>
+            <label style="min-width:100px;max-width:120px">Employee ID
+              <input id="inputEmpId" value="NE-2047"
+                style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #d1d5db">
+            </label>
+
+            <div class="controls-inline" style="margin-right:auto;justify-content:flex-start;flex:1;">
+              <div class="month-nav" style="display:flex;align-items:center;gap:8px">
+              <button id="btnPrevMonth" class="icon-btn" title="Previous month" aria-label="Previous month">◀</button>
+                <label style="margin:0;font-weight:600;display:flex;align-items:center;gap:6px;min-width:80px">
+                  <span style="white-space:nowrap">Month</span>
+                  <select id="selectMonth" style="padding:8px;border-radius:8px;flex:1;min-width:120px"></select>
+                </label>
+                <label style="margin:0;font-weight:600;display:flex;align-items:center;gap:6px;min-width:80px">
+                  <span style="white-space:nowrap">Year</span>
+                  <select id="selectYear" style="padding:8px;border-radius:8px;flex:1;min-width:120px"></select>
+                </label>
+              <button id="btnNextMonth" class="icon-btn" title="Next month" aria-label="Next month">▶</button>
+              </div>
+
+              <button id="btnMarkWeekends" class="btn btn-working">
+                Working Days
+              </button>
+
+              <button id="btnToggleWeekendColor" class="btn btn-default">
+                Mark Weekend
+              </button>
+
+              <button id="btnClearMonth" class="btn btn-clear">
+                Clear Month
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="card" style="margin:0;padding:12px;display:flex;align-items:center;justify-content:center">
+          <div class="clock-container" id="clockContainer" style="flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;width:140px;padding:16px 16px 12px 16px;position:relative">
+            <canvas id="analogClock" width="100" height="100" style="display:block"></canvas>
+            <div id="digitalClock" style="font-size:22px;font-weight:700;color:#fff;font-family:'Courier New',monospace;display:none;text-shadow:0 2px 8px rgba(0,0,0,0.3);letter-spacing:2px">00:00:00</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+              <div id="ampmIndicator" style="font-size:11px;font-weight:700;color:#fff;text-shadow:0 2px 4px rgba(0,0,0,0.3)">AM</div>
+              <button id="clockToggle" style="background:rgba(255,255,255,0.2);border:none;color:#fff;border-radius:12px;padding:4px 12px;font-size:9px;cursor:pointer;font-weight:600;backdrop-filter:blur(10px);transition:all 0.2s ease;letter-spacing:1px">A/D</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="layout">
+        <div class="left card" style="padding:18px;flex:1">
+          <div class="small" style="margin-bottom:8px">Click a date to cycle status: <strong>Empty → P → C → L → H
+              →</strong></div>
+          <div class="weekday-row" aria-hidden="true">
+            <div class="weekday">Mon</div>
+            <div class="weekday">Tue</div>
+            <div class="weekday">Wed</div>
+            <div class="weekday">Thu</div>
+            <div class="weekday">Fri</div>
+            <div class="weekday">Sat</div>
+            <div class="weekday">Sun</div>
+          </div>
+
+          <div style="max-height:560px;overflow:auto;padding:6px">
+            <div id="calendar" class="calendar" role="grid" aria-label="Calendar"></div>
+          </div>
+
+          <div class="legend">
+            <div class="item"><span class="pill P">P</span><span class="small" style="margin-left:8px">Present</span>
+            </div>
+            <div class="item"><span class="pill C">C</span><span class="small" style="margin-left:8px">Comp-off</span>
+            </div>
+            <div class="item"><span class="pill L">L</span><span class="small" style="margin-left:8px">Leave</span>
+            </div>
+            <div class="item"><span class="pill H">H</span><span class="small" style="margin-left:8px">Holiday</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="right" style="flex:1">
+          <div class="card">
+            <div style="font-weight:700;margin-bottom:8px">Summary</div>
+            <div style="font-size:14px;line-height:1.6">
+              <div style="display:flex;justify-content:space-between">
+                <div>Company</div>
+                <div id="summaryCompany">NovaEdge Technologies</div>
+              </div>
+              <div style="display:flex;justify-content:space-between">
+                <div>Employee</div>
+                <div id="summaryName">Aarav Kiran</div>
+              </div>
+              <div style="display:flex;justify-content:space-between">
+                <div>Employee ID</div>
+                <div id="summaryEmpId">NE-2047</div>
+              </div>
+              <div style="display:flex;justify-content:space-between">
+                <div>Month</div>
+                <div id="summaryMonth">October 2025</div>
+              </div>
+              <div style="display:flex;justify-content:space-between">
+                <div>Total Present</div>
+                <div id="summaryPresent">0</div>
+              </div>
+              <div style="display:flex;justify-content:space-between">
+                <div>Total Leave</div>
+                <div id="summaryLeave">0</div>
+              </div>
+              <div style="display:flex;justify-content:space-between">
+                <div>Total Comp-off</div>
+                <div id="summaryComp">0</div>
+              </div>
+              <div style="display:flex;justify-content:space-between">
+                <div>Total Holiday</div>
+                <div id="summaryHoliday">0</div>
+              </div>
+              <div style="display:flex;justify-content:space-between">
+                <div>Attendance %</div>
+                <div id="summaryPercent">0%</div>
+              </div>
+              <div style="display:flex;justify-content:space-between">
+                <div>Comp-off of Holiday</div>
+                <div id="summaryCompOfHoliday">0 / 0 (0.0%)</div>
+              </div>
+            </div>
+
+            <div style="margin-top:12px">
+              <div style="font-weight:600;margin-bottom:8px">Report Preview</div>
+              <div style="max-height:360px;overflow:auto">
+                <table id="reportTable">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="reportBody"></tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ---------- CLIENT APP JS (self-contained) ---------- */
+    (function () {
+      function initTimesheet() {
+        const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+        // Calculate days in month - automatically handles leap years correctly
+        // Using Date constructor with day 0 of next month returns last day of current month
+        function daysInMonth(y, m) {
+          // Validate inputs
+          if (m < 0 || m > 11) {
+            console.error(`Invalid month index in daysInMonth: ${m}`);
+            return 0;
+          }
+          if (y < 1900 || y > 2100) {
+            console.warn(`Unusual year in daysInMonth: ${y}`);
+          }
+          
+          const days = new Date(y, m + 1, 0).getDate();
+          
+          // Validate result is reasonable
+          if (days < 28 || days > 31) {
+            console.warn(`Unexpected day count from daysInMonth(${y}, ${m}): ${days}`);
+          }
+          
+          // Verify leap year handling for February
+          if (m === 1) { // February
+            const isLeapYear = (y % 4 === 0 && y % 100 !== 0) || (y % 400 === 0);
+            const expectedDays = isLeapYear ? 29 : 28;
+            if (days !== expectedDays) {
+              console.error(`Leap year calculation mismatch for February ${y}: expected ${expectedDays}, got ${days}`);
+            }
+          }
+          
+          return days;
+        }
+        function isoDate(y, m, d) { return `${String(y).padStart(4, '0')}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`; }
+        function formatMDY(y, m, d) { return `${m + 1}/${d}/${y}`; }
+        function formatDayName(y, m, d) { return new Date(y, m, d).toLocaleDateString(undefined, { weekday: 'short' }); }
+        function docId(uid, year, month) { return `${uid}_${year}_${month}`; }
+
+        const state = { year: new Date().getFullYear(), monthIndex: new Date().getMonth(), company: 'NovaEdge Technologies', name: '', empId: 'NE-2047', statusMap: {}, commentsMap: {}, showWeekendColors: false };
+
+        // If auth has already resolved, use the authenticated name as the default
+        const authPreferredName = window.__authPreferredName;
+        if (authPreferredName && !state.name) {
+          state.name = authPreferredName;
+        }
+
+        const id = (s) => document.getElementById(s);
+        const selectMonth = id('selectMonth'), selectYear = id('selectYear'), headingMonth = id('headingMonth'), calendarEl = id('calendar');
+        
+        // Validate critical elements exist
+        if (!calendarEl) {
+          console.error('Calendar element #calendar not found in DOM');
+          setTimeout(initTimesheet, 100); // Retry after 100ms
+          return;
+        }
+        if (!headingMonth) {
+          console.error('Heading element #headingMonth not found in DOM');
+          setTimeout(initTimesheet, 100);
+          return;
+        }
+        
+      const inputName = id('inputName'), inputCompany = id('inputCompany'), inputEmpId = id('inputEmpId');
+      const summaryCompany = id('summaryCompany'), summaryName = id('summaryName'), summaryEmpId = id('summaryEmpId'), summaryMonth = id('summaryMonth');
+      const summaryPresent = id('summaryPresent'), summaryLeave = id('summaryLeave'), summaryComp = id('summaryComp'), summaryHoliday = id('summaryHoliday');
+      const summaryPercent = id('summaryPercent'), summaryCompOfHoliday = id('summaryCompOfHoliday'), reportBody = id('reportBody');
+      const btnExportSKP = id('btnExportSKP'), btnExport = id('btnExport'), btnExportCSV = id('btnExportCSV'), btnMarkWeekends = id('btnMarkWeekends'), btnClearMonth = id('btnClearMonth'), btnSendTop = id('btnSendTop'), btnComments = id('btnComments');
+      const btnPrevMonth = id('btnPrevMonth'), btnNextMonth = id('btnNextMonth'), btnToggleWeekendColor = id('btnToggleWeekendColor');
+      const clockContainer = id('clockContainer');
+
+      // Update clock every second
+      function updateClock() {
+        const now = new Date();
+        const hours = now.getHours();
+        const minutes = now.getMinutes();
+        const seconds = now.getSeconds();
+        
+        // Determine AM/PM
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        const displayHours = hours % 12 || 12; // Convert to 12-hour format
+        
+        // Update digital clock with 12-hour format
+        const digitalClock = id('digitalClock');
+        if (digitalClock) {
+          digitalClock.textContent = `${String(displayHours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
+        
+        // Update AM/PM indicator
+        const ampmIndicator = id('ampmIndicator');
+        if (ampmIndicator) {
+          ampmIndicator.textContent = ampm;
+        }
+        
+        // Draw analog clock
+        const canvas = id('analogClock');
+        if (canvas && canvas.getContext) {
+          const ctx = canvas.getContext('2d');
+          const radius = canvas.width / 2;
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          
+          // Outer glow effect
+          const gradient = ctx.createRadialGradient(radius, radius, radius - 10, radius, radius, radius);
+          gradient.addColorStop(0, 'rgba(255,255,255,0.2)');
+          gradient.addColorStop(1, 'rgba(255,255,255,0.05)');
+          ctx.fillStyle = gradient;
+          ctx.beginPath();
+          ctx.arc(radius, radius, radius - 2, 0, 2 * Math.PI);
+          ctx.fill();
+          
+          // Draw clock face border with shadow
+          ctx.shadowColor = 'rgba(0,0,0,0.3)';
+          ctx.shadowBlur = 8;
+          ctx.shadowOffsetX = 0;
+          ctx.shadowOffsetY = 2;
+          ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(radius, radius, radius - 3, 0, 2 * Math.PI);
+          ctx.stroke();
+          ctx.shadowBlur = 0;
+          
+          // Draw hour numbers with glow
+          ctx.fillStyle = '#fff';
+          ctx.font = 'bold 13px Arial';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.shadowColor = 'rgba(255,255,255,0.5)';
+          ctx.shadowBlur = 4;
+          for (let i = 1; i <= 12; i++) {
+            const ang = (i - 3) * Math.PI / 6;
+            const x = radius + (radius - 18) * Math.cos(ang);
+            const y = radius + (radius - 18) * Math.sin(ang);
+            ctx.fillText(i.toString(), x, y);
+          }
+          ctx.shadowBlur = 0;
+          
+          // Draw minute markers
+          ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+          ctx.lineWidth = 1.5;
+          for (let i = 0; i < 60; i++) {
+            if (i % 5 !== 0) {  // Skip hour markers
+              const ang = i * Math.PI / 30;
+              const x1 = radius + (radius - 8) * Math.sin(ang);
+              const y1 = radius - (radius - 8) * Math.cos(ang);
+              const x2 = radius + (radius - 5) * Math.sin(ang);
+              const y2 = radius - (radius - 5) * Math.cos(ang);
+              ctx.beginPath();
+              ctx.moveTo(x1, y1);
+              ctx.lineTo(x2, y2);
+              ctx.stroke();
+            }
+          }
+          
+          // Draw hour markers (thicker)
+          ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+          ctx.lineWidth = 2.5;
+          for (let i = 0; i < 12; i++) {
+            const ang = i * Math.PI / 6;
+            const x1 = radius + (radius - 10) * Math.sin(ang);
+            const y1 = radius - (radius - 10) * Math.cos(ang);
+            const x2 = radius + (radius - 5) * Math.sin(ang);
+            const y2 = radius - (radius - 5) * Math.cos(ang);
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+          }
+          
+          // Hour hand with shadow
+          const hAngle = (hours % 12) * Math.PI / 6 + minutes * Math.PI / (6 * 60);
+          ctx.shadowColor = 'rgba(0,0,0,0.4)';
+          ctx.shadowBlur = 6;
+          ctx.shadowOffsetX = 2;
+          ctx.shadowOffsetY = 2;
+          ctx.strokeStyle = '#fff';
+          ctx.lineWidth = 4;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(radius, radius);
+          ctx.lineTo(radius + (radius - 28) * Math.sin(hAngle), radius - (radius - 28) * Math.cos(hAngle));
+          ctx.stroke();
+          
+          // Minute hand with shadow
+          const mAngle = minutes * Math.PI / 30 + seconds * Math.PI / (30 * 60);
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.moveTo(radius, radius);
+          ctx.lineTo(radius + (radius - 15) * Math.sin(mAngle), radius - (radius - 15) * Math.cos(mAngle));
+          ctx.stroke();
+          
+          // Second hand (thin red line with glow)
+          const sAngle = seconds * Math.PI / 30;
+          ctx.strokeStyle = '#ff6b6b';
+          ctx.shadowColor = '#ff6b6b';
+          ctx.shadowBlur = 8;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(radius, radius);
+          ctx.lineTo(radius + (radius - 12) * Math.sin(sAngle), radius - (radius - 12) * Math.cos(sAngle));
+          ctx.stroke();
+          ctx.shadowBlur = 0;
+          
+          // Center dot
+          ctx.fillStyle = '#fff';
+          ctx.shadowColor = 'rgba(255,255,255,0.8)';
+          ctx.shadowBlur = 6;
+          ctx.beginPath();
+          ctx.arc(radius, radius, 4, 0, 2 * Math.PI);
+          ctx.fill();
+          ctx.shadowBlur = 0;
+        }
+      }
+      updateClock();
+      setInterval(updateClock, 1000);
+
+      // Clock toggle functionality
+      const clockToggleBtn = id('clockToggle');
+      const analogClock = id('analogClock');
+      const digitalClock = id('digitalClock');
+      const ampmIndicator = id('ampmIndicator');
+      let showAnalog = true;
+
+      if (clockToggleBtn) {
+        clockToggleBtn.addEventListener('click', () => {
+          showAnalog = !showAnalog;
+          if (analogClock) analogClock.style.display = showAnalog ? 'block' : 'none';
+          if (digitalClock) digitalClock.style.display = showAnalog ? 'none' : 'block';
+        });
+      }
+
+      if (inputName && state.name) inputName.value = state.name;
+      
+      // Validate summary elements exist (warn but don't block)
+      if (!reportBody) {
+        console.warn('Report body element not found');
+      }
+      if (!summaryPresent || !summaryLeave || !summaryComp || !summaryHoliday) {
+        console.warn('Some summary elements are missing');
+      }
+
+      if (selectMonth) { selectMonth.innerHTML = monthNames.map((m, i) => `<option value="${i}">${m}</option>`).join(''); selectMonth.value = state.monthIndex; }
+      if (selectYear) { const cur = new Date().getFullYear(); selectYear.innerHTML = Array.from({ length: 12 }, (_, i) => cur - 6 + i).map(y => `<option value="${y}">${y}</option>`).join(''); selectYear.value = state.year; }
+
+      function renderHeading() {
+        if (headingMonth) headingMonth.textContent = `${monthNames[state.monthIndex]} ${state.year}`;
+        if (summaryCompany) summaryCompany.textContent = state.company;
+        if (summaryName) summaryName.textContent = state.name;
+        if (summaryEmpId) summaryEmpId.textContent = state.empId;
+        if (summaryMonth) summaryMonth.textContent = `${monthNames[state.monthIndex]} ${state.year}`;
+      }
+
+      const CYCLE = ['', 'P', 'C', 'L', 'H'];
+      function updatePill(w, s) { w.innerHTML = ''; if (!s) return; const sp = document.createElement('span'); sp.className = 'pill ' + s; sp.textContent = s; w.appendChild(sp); }
+
+      function createDayCell(y, m, d) {
+        const iso = isoDate(y, m, d);
+        const cell = document.createElement('div'); cell.className = 'day'; cell.tabIndex = 0; cell.setAttribute('role', 'gridcell'); cell.dataset.date = iso;
+        cell.setAttribute('aria-label', `${monthNames[m]} ${d}, ${y}`);
+        const dow = new Date(y, m, d).getDay();
+        if (dow === 6) cell.classList.add('saturday'); else if (dow === 0) cell.classList.add('sunday'); else cell.classList.add('workday');
+        if (state.showWeekendColors) { if (dow === 6 || dow === 0) cell.style.background = 'linear-gradient(180deg, rgba(16,185,129,0.08), #fff)'; }
+        const num = document.createElement('div'); num.className = 'num'; num.textContent = d; cell.appendChild(num);
+        const pillWrap = document.createElement('div'); pillWrap.className = 'pillWrap'; updatePill(pillWrap, state.statusMap[iso] || ''); cell.appendChild(pillWrap);
+
+        // Comment badge/icon
+        const commentBtn = document.createElement('button');
+        commentBtn.type = 'button';
+        commentBtn.className = 'comment-btn';
+        commentBtn.title = 'Add or view comment';
+        commentBtn.innerHTML = `
+          <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" focusable="false">
+            <path fill-rule="evenodd" d="M3 3.75A.75.75 0 0 1 3.75 3h9.069a1.5 1.5 0 0 1 1.196.598l1.19 1.586a.25.25 0 0 0 .2.096h.705a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-.75.75h-.705a.25.25 0 0 0-.2.096l-1.19 1.586a1.5 1.5 0 0 1-1.196.598H5v3.75a.75.75 0 0 1-1.5 0V3.75Z" clip-rule="evenodd"></path>
+          </svg>
+        `;
+        cell.appendChild(commentBtn);
+
+        const sample = document.createElement('div');
+        sample.className = 'comment-sample';
+        sample.textContent = '';
+        cell.appendChild(sample);
+
+        const setCommentUI = () => {
+          const txt = state.commentsMap[iso] || '';
+          if (txt) {
+            sample.textContent = txt.slice(0, 18);
+            sample.classList.add('has-comment');
+            commentBtn.classList.add('has-comment');
+          } else {
+            sample.textContent = '';
+            sample.classList.remove('has-comment');
+            commentBtn.classList.remove('has-comment');
+          }
+        };
+        setCommentUI();
+
+        commentBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const existing = state.commentsMap[iso] || '';
+          const result = await showCommentModal({
+            title: 'Add comment',
+            description: `Add a comment for ${monthNames[m]} ${d}, ${y}.`,
+            initialText: existing
+          });
+          if (result === null) return;
+          const trimmed = (result || '').trim();
+          if (!trimmed) {
+            delete state.commentsMap[iso];
+          } else {
+            state.commentsMap[iso] = trimmed;
+          }
+          setCommentUI();
+        });
+
+        cell.addEventListener('click', () => {
+          const cur = state.statusMap[iso] || ''; const normCur = (cur === 'ST' || cur === 'SU') ? 'H' : cur;
+          let idx = CYCLE.indexOf(normCur); if (idx === -1) idx = 0; idx = (idx + 1) % CYCLE.length; let next = CYCLE[idx];
+          if (next === 'H') { if (dow === 6) next = 'ST'; else if (dow === 0) next = 'SU'; }
+          if (next === '') delete state.statusMap[iso]; else state.statusMap[iso] = next;
+          updatePill(pillWrap, state.statusMap[iso] || ''); cell.setAttribute('aria-current-status', next || 'Empty'); updateSummaryAndReport();
+        });
+        cell.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cell.click(); } });
+        return cell;
+      }
+
+      function renderCalendar() {
+        if (!calendarEl) {
+          console.error('Cannot render calendar: calendar element not found');
+          return;
+        }
+        
+        // Get current month/year and calculate total days
+        const y = state.year;
+        const m = state.monthIndex;
+        const total = daysInMonth(y, m);
+        
+        // Validate: Ensure we only process days 1 to total for this month
+        // Validate month index is valid
+        if (m < 0 || m > 11) {
+          console.error(`Invalid month index: ${m}`);
+          return;
+        }
+        
+        // Validate year is reasonable
+        if (y < 1900 || y > 2100) {
+          console.warn(`Unusual year value: ${y}`);
+        }
+        
+        // Validate day count is within expected range
+        if (total < 28 || total > 31) {
+          console.warn(`Invalid day count for ${monthNames[m]} ${y}: ${total}`);
+        }
+        
+        // Log calendar update for debugging
+        console.log(`Rendering calendar for ${monthNames[m]} ${y} with ${total} days`);
+        
+        // Completely clear calendar before rendering - ensure no leftover days
+        calendarEl.innerHTML = '';
+        
+        // Verify calendar is empty after clearing
+        if (calendarEl.children.length > 0) {
+          console.warn('Calendar not fully cleared, forcing complete clear');
+          while (calendarEl.firstChild) {
+            calendarEl.removeChild(calendarEl.firstChild);
+          }
+        }
+        
+        // Calculate first day of week offset (Monday = 0)
+        const firstDow = new Date(y, m, 1).getDay();
+        const offset = (firstDow + 6) % 7;
+        
+        // Validate offset is reasonable
+        if (offset < 0 || offset > 6) {
+          console.warn(`Invalid week offset: ${offset} for ${monthNames[m]} ${y}`);
+        }
+        
+        // Add blank cells for week offset
+        for (let i = 0; i < offset; i++) {
+          const blank = document.createElement('div');
+          blank.className = 'day hidden';
+          calendarEl.appendChild(blank);
+        }
+        
+        // Render only valid days for this month (1 to total)
+        // Explicit validation: ensure we never render days beyond the month's actual days
+        const daysRendered = [];
+        for (let d = 1; d <= total; d++) {
+          // Double-check that day is valid for this month
+          const testDate = new Date(y, m, d);
+          if (testDate.getMonth() !== m || testDate.getFullYear() !== y) {
+            console.warn(`Skipping invalid day ${d} for ${monthNames[m]} ${y}`);
+            continue;
+          }
+          daysRendered.push(d);
+          calendarEl.appendChild(createDayCell(y, m, d));
+        }
+        
+        // Verify we rendered the correct number of days
+        const actualDaysRendered = daysRendered.length;
+        if (actualDaysRendered !== total) {
+          console.error(`Day count mismatch: expected ${total}, rendered ${actualDaysRendered} for ${monthNames[m]} ${y}`);
+        }
+        
+        // Synchronize all components: update summary and report table
+        updateSummaryAndReport();
+      }
+
+      function updateSummaryAndReport() {
+        // Get current month/year and calculate total days - ensure we only process valid days
+        const y = state.year;
+        const m = state.monthIndex;
+        const total = daysInMonth(y, m);
+        
+        // Validate month index and year
+        if (m < 0 || m > 11) {
+          console.error(`Invalid month index in updateSummaryAndReport: ${m}`);
+          return;
+        }
+        
+        // Validate day count
+        if (total < 28 || total > 31) {
+          console.warn(`Invalid day count in updateSummaryAndReport for ${monthNames[m]} ${y}: ${total}`);
+        }
+        
+        // Initialize counters
+        let present = 0, leave = 0, comp = 0, hol = 0;
+        
+        // Clear report table completely before updating - ensure no leftover rows
+        if (reportBody) {
+          reportBody.innerHTML = '';
+          // Verify table is empty after clearing
+          if (reportBody.children.length > 0) {
+            console.warn('Report table not fully cleared, forcing complete clear');
+            while (reportBody.firstChild) {
+              reportBody.removeChild(reportBody.firstChild);
+            }
+          }
+        }
+        
+        // Process only valid days for this month (1 to total)
+        // This ensures punching logic and color fill work correctly for the selected month
+        const daysProcessed = [];
+        for (let d = 1; d <= total; d++) {
+          // Validate that day is actually valid for this month
+          const testDate = new Date(y, m, d);
+          if (testDate.getMonth() !== m || testDate.getFullYear() !== y) {
+            console.warn(`Skipping invalid day ${d} in updateSummaryAndReport for ${monthNames[m]} ${y}`);
+            continue;
+          }
+          
+          daysProcessed.push(d);
+          const iso = isoDate(y, m, d);
+          const st = state.statusMap[iso] || '';
+          
+          // Count statuses for summary
+          if (st === 'P') present++;
+          else if (st === 'L') leave++;
+          else if (st === 'C') comp++;
+          else if (st === 'H' || st === 'ST' || st === 'SU') hol++;
+          
+          // Add row to report table
+          if (reportBody) {
+            const tr = document.createElement('tr');
+            const td1 = document.createElement('td');
+            td1.textContent = formatMDY(y, m, d);
+            
+            const td2 = document.createElement('td');
+            td2.textContent = st || '—';
+            td2.style.textAlign = 'center';
+            td2.className = 'status-cell' + (st ? (' ' + st) : '');
+            
+            tr.appendChild(td1);
+            tr.appendChild(td2);
+            reportBody.appendChild(tr);
+          }
+        }
+        
+        // Verify we processed the correct number of days
+        if (daysProcessed.length !== total) {
+          console.warn(`Day count mismatch in updateSummaryAndReport: expected ${total}, processed ${daysProcessed.length} for ${monthNames[m]} ${y}`);
+        }
+        
+        // Update summary values - synchronized with calendar and report
+        if (summaryPresent) summaryPresent.textContent = present;
+        if (summaryLeave) summaryLeave.textContent = leave;
+        if (summaryComp) summaryComp.textContent = comp;
+        if (summaryHoliday) summaryHoliday.textContent = hol;
+        
+        // Calculate percentages based on actual days in month
+        const workingDays = Math.max(0, total - hol);
+        const attendancePercent = workingDays > 0 ? (present / workingDays) * 100 : 0;
+        const compOffPercent = hol > 0 ? (comp / hol) * 100 : 0;
+        
+        if (summaryPercent) summaryPercent.textContent = `${attendancePercent.toFixed(1)}%`;
+        if (summaryCompOfHoliday) summaryCompOfHoliday.textContent = `${comp} / ${hol} (${compOffPercent.toFixed(1)}%)`;
+      }
+
+      function exportCSV() {
+        const y = state.year, m = state.monthIndex, total = daysInMonth(y, m); const rows = []; rows.push([`Company Name: ${state.company}`]); rows.push([`Employee Name: ${state.name}`]); rows.push([`Employee ID: ${state.empId}`]); rows.push([`Month: ${monthNames[m]} ${y}`]); rows.push([]); rows.push(['Date', 'Status']);
+        for (let d = 1; d <= total; d++) { const st = state.statusMap[isoDate(y, m, d)] || ''; rows.push([formatMDY(y, m, d), st]); }
+        const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+        const blob = new Blob(["\uFEFF", csv], { type: 'text/csv;charset=utf-8;' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `${state.name.replace(/\s+/g, '_')}_${monthNames[m]}_${y}.csv`; a.click(); URL.revokeObjectURL(url);
+      }
+
+      // Swallow external location.js errors so they never block export
+      window.addEventListener('error', (e) => {
+        if (e && e.filename && e.filename.includes('location.js')) {
+          e.preventDefault();
+        }
+      });
+
+      function statusFillFor(code) {
+        const c = (code || '').toUpperCase();
+        switch (c) {
+          case 'P': return '00ff66';
+          case 'C': return '00b0f0';
+          case 'L': return 'fbb034';
+          case 'H': return 'f85fa6';
+          case 'ST': return 'd9d9d9';
+          case 'SU': return 'fff2cc';
+          default: return null;
+        }
+      }
+
+      async function exportExcel(mode = 'default', templateType = null) {
+        const templateSelect = document.getElementById('templateSelect');
+        const selectedTemplate = templateType || (templateSelect ? templateSelect.value : 'indian_skp');
+
+        const btn = mode === 'skp' ? document.getElementById('btnExportSKP') :
+          (document.getElementById('btnExportTemplate') || document.getElementById('btnExport'));
+        const originalText = btn ? btn.textContent : 'Export';
+        if (btn) {
+          btn.textContent = mode === 'skp' ? 'Generating Indian Standard...' : 'Exporting...';
+          btn.disabled = true;
+        }
+        showPageLoader('Preparing export...');
+
+        try {
+          // Location disabled
+          let location = {};
+
+          // Gather data
+          const y = state.year, m = state.monthIndex, total = daysInMonth(y, m);
+          const rows = [];
+          for (let d = 1; d <= total; d++) {
+            const iso = isoDate(y, m, d);
+            const st = state.statusMap[iso] || '';
+            const dt = new Date(y, m, d);
+            const dayName = dt.toLocaleDateString('en-US', { weekday: 'short' });
+            const isSat = dt.getDay() === 6;
+            const isSun = dt.getDay() === 0;
+            let isWeekend = false;
+            if (isSat) isWeekend = 'sat';
+            if (isSun) isWeekend = 'sun';
+
+            rows.push({
+              date: formatMDY(y, m, d),
+              day: dayName,
+              status: st,
+              isWeekend: isWeekend
+            });
+          }
+
+          const payload = {
+            company: state.company,
+            employeeName: state.name,
+            employeeId: state.empId,
+            month: monthNames[m],
+            year: y,
+            summary: {
+              totalPresent: document.getElementById('summaryPresent').textContent,
+              totalLeave: document.getElementById('summaryLeave').textContent,
+              totalHoliday: document.getElementById('summaryHoliday').textContent,
+              attendancePercent: document.getElementById('summaryPercent').textContent.replace('%', '')
+            },
+            attendanceRows: rows,
+            location: location,
+            userId: (window.firebaseAuth && window.firebaseAuth.currentUser) ? window.firebaseAuth.currentUser.uid : 'guest'
+          };
+
+          const formData = new FormData();
+          for (const [key, value] of Object.entries(payload)) {
+            formData.append(key, typeof value === 'object' ? JSON.stringify(value) : value);
+          }
+
+          // Plain export path (non-template) if explicitly requested
+          if (mode === 'plain') {
+            try {
+              exportLocalExcel(state, monthNames, state.monthIndex, state.year);
+              showToast('Exported Excel (plain)', 'success');
+            } finally {
+              if (btn) {
+                btn.textContent = originalText;
+                btn.disabled = false;
+              }
+              hidePageLoader();
+            }
+            return;
+          }
+
+          // For Indian Standard mode, try xlsx-populate export first (better style preservation)
+          if (mode === 'skp' || selectedTemplate === 'indian_skp' || selectedTemplate === 'skp-default') {
+            // Check if xlsx-populate is available
+            if (typeof XlsxPopulate !== 'undefined' && typeof window.exportWithTemplateXlsxPopulate === 'function') {
+              try {
+                await window.exportWithTemplateXlsxPopulate(state, 'template/TIMESHEET_NOVEMBER-SKP.xlsx');
+                showToast('Indian Standard report generated successfully!', 'success');
+                if (btn) {
+                  btn.textContent = originalText;
+                  btn.disabled = false;
+                }
+                hidePageLoader();
+                return;
+              } catch (xlsxPopulateErr) {
+                console.warn('xlsx-populate export failed, trying backend:', xlsxPopulateErr);
+                // Fall through to backend/fallback
+              }
+            }
+          }
+
+          // Template type handling
+          if (mode === 'skp' || selectedTemplate === 'indian_skp') {
+            formData.append('templateId', 'skp-default');
+            formData.append('templateType', 'indian_skp');
+          } else {
+            formData.append('templateType', selectedTemplate);
+            formData.append('templateId', 'default');
+          }
+
+          // Call Backend with error handling and fallback
+          let res;
+          try {
+            res = await fetch('/api/export-template', {
+              method: 'POST',
+              body: formData
+            });
+
+            if (!res.ok) {
+              const errText = await res.text();
+              let errMessage = 'Export failed';
+              try {
+                const errJson = JSON.parse(errText);
+                errMessage = errJson.error || errMessage;
+              } catch {
+                errMessage = errText || errMessage;
+              }
+              throw new Error(errMessage);
+            }
+          } catch (e) {
+            console.warn('Backend export failed, using local fallback:', e);
+            // Fallback to client-side Excel export
+            showToast('Backend export unavailable, using local export...', 'info');
+            exportLocalExcel(state, monthNames, m, y);
+            if (btn) {
+              btn.textContent = originalText;
+              btn.disabled = false;
+            }
+            return;
+          }
+
+          // Handle Download
+          const blob = await res.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          // Use filename from header or fallback
+          const contentDisposition = res.headers.get('Content-Disposition');
+          let filename = `${state.name.replace(/\s+/g, '_')}_${monthNames[m]}_${y}.xlsx`;
+          if (contentDisposition && contentDisposition.indexOf('attachment') !== -1) {
+            const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+            const matches = filenameRegex.exec(contentDisposition);
+            if (matches != null && matches[1]) {
+              filename = matches[1].replace(/['"]/g, '');
+            }
+          }
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          window.URL.revokeObjectURL(url);
+
+        } catch (err) {
+          console.error('Export error:', err);
+          // Fallback to client-side Excel to guarantee a file
+          try {
+            showToast('Attempting local export as fallback...', 'info');
+            exportLocalExcel(state, monthNames, state.monthIndex, state.year);
+            showToast('Excel exported successfully (local fallback)', 'success');
+          } catch (fallbackErr) {
+            console.error('Local export failed:', fallbackErr);
+            showToast('Export failed: ' + (err.message || 'Unknown error') + '. Please check backend server is running.', 'error');
+          }
+        } finally {
+          if (btn) {
+            btn.textContent = originalText;
+            btn.disabled = false;
+          }
+          hidePageLoader();
+        }
+      }
+
+      function downloadWorkbook(buffer, filename) {
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+      }
+
+      async function exportWithTemplateXlsxPopulate(state, templatePath = 'template/TIMESHEET_NOVEMBER-SKP.xlsx') {
+        if (typeof XlsxPopulate === 'undefined') {
+          throw new Error('xlsx-populate library not loaded.');
+        }
+
+        const resp = await fetch(templatePath + '?v=' + Date.now());
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/438f9bb9-bc48-479c-8d03-b0affc4891a7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H2',location:'timesheet/index.html:exportWithTemplateXlsxPopulate',message:'Template fetch response',data:{templatePath, ok:resp.ok, status:resp.status},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
+        if (!resp.ok) throw new Error('Template file not found.');
+        const buffer = await resp.arrayBuffer();
+        const workbook = await XlsxPopulate.fromDataAsync(buffer);
+        const sheet = workbook.sheet(0);
+
+        const monthNamesUpper = ["JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"];
+        const monthLabel = monthNamesUpper[state.monthIndex] || '';
+
+        // Header
+        sheet.cell("A1").value(`Attentence Details for ${monthLabel} - ${state.year}`);
+        // Place employee info prominently
+        sheet.cell("A2").value(state.name || '');
+        sheet.cell("A3").value(state.empId || '');
+        sheet.cell("A4").value(state.company || '');
+        // Overwrite template's visible name row (row 2) to avoid stale names
+        sheet.cell(2, 1).value(state.name || '');
+
+        const totalDays = new Date(state.year, state.monthIndex + 1, 0).getDate();
+        const maxTemplateDays = 31;
+
+        // Clear existing date/status rows to remove template defaults (dates 15/20 etc.)
+        for (let col = 2; col <= 1 + maxTemplateDays; col++) { // B..AF
+          const dateCell = sheet.cell(1, col);
+          const statusCell = sheet.cell(2, col);
+          dateCell.value(null).style("fill", null);
+          statusCell.value(null).style("fill", null);
+          if (typeof dateCell.comment === 'function') {
+            dateCell.comment(null);
+          }
+          if (typeof statusCell.comment === 'function') {
+            statusCell.comment(null);
+          }
+        }
+
+        // Write dates (row 1) and statuses (row 2) with colors/comments
+        const dateFormat = "d-mmm-yy";
+        for (let d = 1; d <= totalDays; d++) {
+          const col = 2 + (d - 1); // B=2
+          const iso = isoDate(state.year, state.monthIndex, d);
+          const status = (state.statusMap[iso] || '').toUpperCase();
+          const dateCell = sheet.cell(1, col);
+          const statusCell = sheet.cell(2, col);
+
+          dateCell.value(new Date(state.year, state.monthIndex, d)).style("numberFormat", dateFormat);
+          statusCell.value(status || '');
+
+          const fill = statusFillFor(status);
+          if (fill) {
+            statusCell.style("fill", { type: 'solid', color: fill });
+          } else {
+            statusCell.style("fill", null);
+          }
+
+          // per-day comments as cell notes
+          // xlsx-populate (browser) lacks cell.comment in some builds; skip to avoid runtime failure
+          // const cmt = state.commentsMap[iso];
+          // if (cmt && typeof statusCell.comment === 'function') {
+          //   statusCell.comment(cmt);
+          // }
+        }
+        // Clear columns beyond actual days (keep blank)
+        for (let d = totalDays + 1; d <= maxTemplateDays; d++) {
+          const col = 2 + (d - 1);
+          const dateCell = sheet.cell(1, col);
+          const statusCell = sheet.cell(2, col);
+          dateCell.value(null).style("fill", null);
+          statusCell.value(null).style("fill", null);
+          if (typeof dateCell.comment === 'function') {
+            dateCell.comment(null);
+          }
+          if (typeof statusCell.comment === 'function') {
+            statusCell.comment(null);
+          }
+        }
+
+        // No. of days (present) summary in AG2 (col 33, row 2)
+        const totalPresent = (state.summaryPresentEl?.textContent) ? Number(state.summaryPresentEl.textContent) : Object.values(state.statusMap || {}).filter(s => s === 'P').length;
+        sheet.cell(2, 33).value(totalPresent);
+
+        // Write day comments into remarks rows (B5..B32)
+        const remarksStartRow = 5;
+        const remarksEndRow = 32;
+        const remarksCol = 2; // Column B = 2
+        const commentEntries = Object.entries(state.commentsMap || {})
+          .filter(([, v]) => v && String(v).trim())
+          .map(([k, v]) => ({ iso: k, text: String(v).trim() }));
+        commentEntries.sort((a, b) => a.iso.localeCompare(b.iso));
+        let remarkRow = remarksStartRow;
+        for (const entry of commentEntries) {
+          if (remarkRow > remarksEndRow) break;
+          sheet.cell(remarkRow, remarksCol).value(`${entry.iso}: ${entry.text}`);
+          remarkRow++;
+        }
+        // Clear remaining remark rows
+        for (let r = remarkRow; r <= remarksEndRow; r++) {
+          sheet.cell(r, remarksCol).value('');
+        }
+
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/438f9bb9-bc48-479c-8d03-b0affc4891a7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H3',location:'timesheet/index.html:exportWithTemplateXlsxPopulate',message:'Template fill summary',data:{month:state.monthIndex,year:state.year,totalDays,totalPresent,statusSamples:Object.entries(state.statusMap||{}).slice(0,5)},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
+
+        const out = await workbook.outputAsync();
+        const filename = `${(state.name || 'Timesheet').replace(/\s+/g, '_')}_${monthNames[state.monthIndex]}_${state.year}.xlsx`;
+        downloadWorkbook(out, filename);
+
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/438f9bb9-bc48-479c-8d03-b0affc4891a7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1',location:'timesheet/index.html:exportWithTemplateXlsxPopulate',message:'Template export completed',data:{filename},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
+      }
+
+      async function exportTemplateSKP() {
+        const btn = document.getElementById('btnExportTemplate');
+        const originalText = btn ? btn.textContent : 'Export w/ Template';
+        if (btn) {
+          btn.disabled = true;
+          btn.textContent = 'Exporting...';
+        }
+        showPageLoader('Preparing SKP template...');
+        try {
+          // #region agent log
+          fetch('http://127.0.0.1:7243/ingest/438f9bb9-bc48-479c-8d03-b0affc4891a7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1',location:'timesheet/index.html:exportTemplateSKP',message:'Entered exportTemplateSKP',data:{hasXlsxPopulate:typeof XlsxPopulate !== 'undefined',templatePath:'template/TIMESHEET_NOVEMBER-SKP.xlsx'},timestamp:Date.now()})}).catch(()=>{});
+          // #endregion
+          await exportWithTemplateXlsxPopulate(state, 'template/TIMESHEET_NOVEMBER-SKP.xlsx');
+          showToast('Template exported (Indian/SKP)', 'success');
+        } catch (err) {
+          console.error('Template export failed:', err);
+          showToast('Template export failed: ' + (err.message || 'Unknown error'), 'error');
+        } finally {
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = originalText;
+          }
+          hidePageLoader();
+        }
+      }
+
+      // Fallback Excel export function (client-side only)
+      function exportLocalExcel(state, monthNames, monthIndex, year) {
+        try {
+          const wb = XLSX.utils.book_new();
+          const wsData = [
+            ['Company', state.company || ''],
+            ['Employee Name', state.name || ''],
+            ['Employee ID', state.empId || ''],
+            ['Month', monthNames[monthIndex] || ''],
+            ['Year', year || ''],
+            [],
+            ['Date', 'Day', 'Status']
+          ];
+
+          const total = new Date(year, monthIndex + 1, 0).getDate();
+          for (let d = 1; d <= total; d++) {
+            const iso = `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            const dt = new Date(year, monthIndex, d);
+            const dayName = dt.toLocaleDateString('en-US', { weekday: 'short' });
+            wsData.push([
+              `${monthIndex + 1}/${d}/${year}`,
+              dayName,
+              state.statusMap[iso] || ''
+            ]);
+          }
+
+          // Add summary
+          wsData.push([]);
+          wsData.push(['Summary', '']);
+          wsData.push(['Total Present', document.getElementById('summaryPresent')?.textContent || '0']);
+          wsData.push(['Total Leave', document.getElementById('summaryLeave')?.textContent || '0']);
+          wsData.push(['Total Holiday', document.getElementById('summaryHoliday')?.textContent || '0']);
+          wsData.push(['Attendance %', document.getElementById('summaryPercent')?.textContent || '0%']);
+
+          const ws = XLSX.utils.aoa_to_sheet(wsData);
+          XLSX.utils.book_append_sheet(wb, ws, 'Timesheet');
+          const filename = `${(state.name || 'Employee').replace(/\s+/g, '_')}_${monthNames[monthIndex]}_${year}.xlsx`;
+          XLSX.writeFile(wb, filename);
+        } catch (err) {
+          console.error('Local export failed:', err);
+          showToast('Export failed. Please ensure backend server is running.', 'error');
+        }
+      }
+
+      function markWeekendsAsHoliday() {
+        const y = state.year, m = state.monthIndex, total = daysInMonth(y, m);
+        for (let d = 1; d <= total; d++) {
+          const dow = new Date(y, m, d).getDay();
+          if (dow !== 6 && dow !== 0) state.statusMap[isoDate(y, m, d)] = 'P';
+        }
+        renderCalendar();
+        showToast('Weekdays marked as present', 'success');
+      }
+      function markWeekends() {
+        const y = state.year, m = state.monthIndex, total = daysInMonth(y, m);
+        for (let d = 1; d <= total; d++) {
+          const dow = new Date(y, m, d).getDay();
+          if (dow === 6) state.statusMap[isoDate(y, m, d)] = 'ST';
+          if (dow === 0) state.statusMap[isoDate(y, m, d)] = 'SU';
+        }
+        renderCalendar();
+        showToast('Weekends marked', 'success');
+      }
+      function clearMonth() {
+        const y = state.year, m = state.monthIndex;
+        const keysInMonth = (key) => {
+          const dt = new Date(key);
+          return dt.getFullYear() === y && dt.getMonth() === m;
+        };
+
+        // Clear status entries for the selected month
+        Object.keys(state.statusMap).forEach(k => {
+          if (keysInMonth(k)) delete state.statusMap[k];
+        });
+
+        // Clear comments for the selected month
+        if (state.commentsMap && typeof state.commentsMap === 'object') {
+          Object.keys(state.commentsMap).forEach(k => {
+            if (keysInMonth(k)) delete state.commentsMap[k];
+          });
+        }
+
+        renderCalendar();
+        showToast('All entries and comments cleared for this month', 'success');
+      }
+
+      function createSendModal() {
+        if (document.getElementById('sendModal')) return document.getElementById('sendModal');
+        const modal = document.createElement('div');
+        modal.id = 'sendModal';
+        modal.style.position = 'fixed'; modal.style.inset = '0'; modal.style.display = 'flex'; modal.style.alignItems = 'center'; modal.style.justifyContent = 'center'; modal.style.zIndex = '1400'; modal.style.background = 'rgba(6,11,15,0.6)';
+
+        // Pre-filled Message Logic
+        const monthStr = monthNames[state.monthIndex] + ' ' + state.year;
+        const subjectPre = `Timesheet - ${state.name} - ${monthStr}`;
+        const bodyPre = `Hi sir,\n\nI have attached the timesheet for ${monthStr} for ${state.name}. Kindly review it for salary processing.\n\nBest regards,\n${state.name}`;
+
+        modal.innerHTML = `
+          <div style="background:#fff;border-radius:12px;padding:24px;max-width:720px;width:100%;box-shadow:0 25px 50px -12px rgba(0,0,0,0.25);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+              <div style="font-weight:700;font-size:18px;color:#111827">Send Timesheet</div>
+              <button id="sendModalClose" style="border:none;background:transparent;font-size:20px;cursor:pointer;color:#6b7280">✕</button>
+            </div>
+            
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+              <label style="font-size:13px;color:#374151;font-weight:500">To (company email)
+                <input id="modalTo" type="email" placeholder="hr@company.com" style="width:100%;margin-top:6px;padding:10px;border-radius:6px;border:1px solid #d1d5db" />
+              </label>
+              <label style="font-size:13px;color:#374151;font-weight:500">Subject
+                <input id="modalSubject" type="text" value="${subjectPre}" style="width:100%;margin-top:6px;padding:10px;border-radius:6px;border:1px solid #d1d5db" />
+              </label>
+              <label style="font-size:13px;color:#374151;font-weight:500">Sender name
+                <input id="modalSenderName" type="text" value="${state.name}" style="width:100%;margin-top:6px;padding:10px;border-radius:6px;border:1px solid #d1d5db" />
+              </label>
+              <label style="font-size:13px;color:#374151;font-weight:500">Sender email / phone
+                <input id="modalSenderEmail" type="text" placeholder="your@email.com" style="width:100%;margin-top:6px;padding:10px;border-radius:6px;border:1px solid #d1d5db" />
+              </label>
+            </div>
+            
+            <label style="font-size:13px;color:#374151;font-weight:500;display:block;margin-bottom:8px">Message (editable)</label>
+            <textarea id="modalBody" rows="7" style="width:100%;padding:12px;border-radius:8px;border:1px solid #d1d5db;resize:vertical;font-family:inherit;margin-bottom:24px">${bodyPre}</textarea>
+            
+            <div style="display:flex;gap:12px;justify-content:flex-end;flex-wrap:wrap">
+              <button id="modalDownloadOnly" class="btn-3d btn-flat" style="border:1px solid #e5e7eb">Download Only</button>
+              <button id="modalGmail" class="btn-3d btn-accent" style="background:#0F9D58;color:#fff">Download & Gmail</button>
+              <button id="modalOutlook" class="btn-3d btn-accent" style="background:#0078D4;color:#fff">Download & Outlook</button>
+              <button id="modalMailApp" class="btn-3d btn-accent" style="background:#F59E0B;color:#fff">Download & Mail App</button>
+            </div>
+          </div>`;
+
+        document.body.appendChild(modal);
+
+        // --- Action Logic ---
+        const getDetails = () => ({
+          to: modal.querySelector('#modalTo').value,
+          subject: modal.querySelector('#modalSubject').value,
+          body: modal.querySelector('#modalBody').value
+        });
+
+        const doDownload = () => {
+          // Re-use exportExcel logic? Or just trigger SKP download?
+          // User just wants to 'Download'. Let's assume SKP format is preferred, or Default?
+          // Context implies "attached the timesheet", so downloading it is the first step.
+          exportExcel('skp'); // Trigger standard download
+        };
+
+        modal.querySelector('#sendModalClose').addEventListener('click', () => modal.remove());
+
+        // 1. Download Only
+        modal.querySelector('#modalDownloadOnly').addEventListener('click', () => {
+          doDownload();
+          modal.remove();
+        });
+
+        // 2. Gmail
+        modal.querySelector('#modalGmail').addEventListener('click', () => {
+          doDownload();
+          const d = getDetails();
+          const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(d.to)}&su=${encodeURIComponent(d.subject)}&body=${encodeURIComponent(d.body)}`;
+          window.open(gmailUrl, '_blank');
+          modal.remove();
+        });
+
+        // 3. Outlook / MailTo (Outlook usually captures mailto, but we can try specific URL if web version, but mailto is safer for desktop app)
+        modal.querySelector('#modalOutlook').addEventListener('click', () => {
+          doDownload();
+          const d = getDetails();
+          // Try standard mailto, most Outlook users have it set as default
+          const mailto = `mailto:${d.to}?subject=${encodeURIComponent(d.subject)}&body=${encodeURIComponent(d.body)}`;
+          window.location.href = mailto;
+          modal.remove();
+        });
+
+        // 4. Mail App
+        modal.querySelector('#modalMailApp').addEventListener('click', () => {
+          doDownload();
+          const d = getDetails();
+          const mailto = `mailto:${d.to}?subject=${encodeURIComponent(d.subject)}&body=${encodeURIComponent(d.body)}`;
+          window.location.href = mailto;
+          modal.remove();
+        });
+
+        return modal;
+      }
+
+      // Function to load timesheet from database when month/year/employee changes
+      async function loadTimesheetForCurrentSelection() {
+        const state = window.__timesheetState;
+        if (!state) return;
+
+        try {
+          const auth = window.firebaseAuth;
+          const db = window.firebaseDb;
+          if (!auth || !db || !window.firebase || !window.firebase.firestoreFunctions) {
+            console.warn('Firebase not available for loading timesheet');
+            return;
+          }
+
+          const user = auth.currentUser || currentUser;
+          if (!user) {
+            console.warn('No authenticated user for loading timesheet');
+            return;
+          }
+
+          console.log('Load timesheet - Auth check:', {
+            userId: user.uid,
+            userEmail: user.email
+          });
+
+          const { doc, getDoc, setDoc, serverTimestamp } = window.firebase.firestoreFunctions;
+          const empId = state.empId || '';
+
+          // Primary: user-based doc ID
+          const docId = getTimesheetDocId(user.uid, state.year, state.monthIndex);
+          const ref = doc(db, 'timesheets', docId);
+          const snap = await getDoc(ref);
+
+          if (snap.exists()) {
+            const data = snap.data();
+            if (data.statusMap && typeof data.statusMap === 'object') {
+              state.statusMap = { ...data.statusMap };
+              console.log(`Timesheet loaded (user-based): ${docId}`);
+              if (data.commentsMap && typeof data.commentsMap === 'object') {
+                state.commentsMap = { ...data.commentsMap };
+              }
+              if (window.__renderCalendar) window.__renderCalendar();
+              if (window.__updateSummaryAndReport) window.__updateSummaryAndReport();
+            }
+          } else {
+            // Legacy fallback: employee-based doc ID for migration
+            if (empId) {
+              const legacyDocId = `${empId}_${state.year}_${state.monthIndex}`;
+              try {
+                const legacyRef = doc(db, 'timesheets', legacyDocId);
+                const legacySnap = await getDoc(legacyRef);
+                if (legacySnap.exists()) {
+                  const legacyData = legacySnap.data();
+                  // Migrate legacy to user-based doc
+                  const migratedData = {
+                    ...legacyData,
+                    userId: user.uid,
+                    userEmail: user.email || '',
+                    employeeId: legacyData.employeeId || empId,
+                    employeeName: legacyData.employeeName || state.name || '',
+                    company: legacyData.company || state.company || '',
+                    savedAt: legacyData.savedAt || (serverTimestamp ? serverTimestamp() : new Date()),
+                    updatedAt: serverTimestamp ? serverTimestamp() : new Date()
+                  };
+                  await setDoc(ref, migratedData, { merge: true });
+                  console.log(`Migrated legacy timesheet ${legacyDocId} -> ${docId}`);
+                  state.statusMap = migratedData.statusMap || {};
+                  state.commentsMap = migratedData.commentsMap || {};
+                  if (migratedData.employeeName) state.name = migratedData.employeeName;
+                  if (migratedData.company) state.company = migratedData.company;
+                  if (migratedData.employeeId) state.empId = migratedData.employeeId;
+                  if (window.__renderCalendar) window.__renderCalendar();
+                  if (window.__updateSummaryAndReport) window.__updateSummaryAndReport();
+                  return;
+                }
+              } catch (legacyErr) {
+                console.warn('Legacy load failed:', legacyErr);
+              }
+            }
+
+            // If nothing found, clear state for this month
+            state.statusMap = {};
+            console.log(`No timesheet found for user-based doc: ${docId}`);
+            if (window.__renderCalendar) window.__renderCalendar();
+            if (window.__updateSummaryAndReport) window.__updateSummaryAndReport();
+          }
+        } catch (err) {
+          if (err && err.code === 'permission-denied') {
+            console.error('Permission denied loading timesheet:', {
+              user: user ? { uid: user.uid, email: user.email } : 'No user',
+              error: err.message
+            });
+            showToast('Could not load saved timesheet. You can start a new one and save.', 'info', 4000);
+          } else {
+            console.error('Error loading timesheet:', err);
+          }
+          // Don't block UI, just log the error
+        }
+      }
+
+      // Helper function to clean up statusMap - remove dates that don't belong to current month/year
+      function cleanupStatusMapForCurrentMonth() {
+        const y = state.year;
+        const m = state.monthIndex;
+        const total = daysInMonth(y, m);
+        
+        // Build set of valid ISO dates for current month
+        const validDates = new Set();
+        for (let d = 1; d <= total; d++) {
+          validDates.add(isoDate(y, m, d));
+        }
+        
+        // Remove any statusMap entries that don't belong to current month
+        const keysToRemove = [];
+        for (const dateKey in state.statusMap) {
+          if (!validDates.has(dateKey)) {
+            keysToRemove.push(dateKey);
+          }
+        }
+        
+        if (keysToRemove.length > 0) {
+          console.log(`Cleaning up ${keysToRemove.length} invalid date entries from statusMap`);
+          keysToRemove.forEach(key => delete state.statusMap[key]);
+        }
+      }
+
+      // wire events
+      if (selectMonth) selectMonth.addEventListener('change', () => {
+        const oldMonth = state.monthIndex;
+        state.monthIndex = Number(selectMonth.value);
+        
+        // Validate month index
+        if (state.monthIndex < 0 || state.monthIndex > 11) {
+          console.error(`Invalid month index: ${state.monthIndex}`);
+          state.monthIndex = oldMonth;
+          selectMonth.value = oldMonth;
+          return;
+        }
+        
+        renderHeading();
+        
+        // Clean up invalid dates before loading new month data
+        // This removes any dates that don't belong to the new month
+        cleanupStatusMapForCurrentMonth();
+        
+        // Load timesheet data and then synchronize all components
+        loadTimesheetForCurrentSelection().then(() => {
+          // Ensure calendar, summary, and report all update synchronously
+          // Call renderCalendar directly - it will call updateSummaryAndReport internally
+          renderCalendar();
+        }).catch((error) => {
+          console.error('Error loading timesheet after month change:', error);
+          // Still render calendar even if data load fails
+          renderCalendar();
+        });
+      });
+      if (selectYear) selectYear.addEventListener('change', () => {
+        const oldYear = state.year;
+        state.year = Number(selectYear.value);
+        
+        // Validate year
+        if (state.year < 1900 || state.year > 2100) {
+          console.warn(`Unusual year value: ${state.year}`);
+        }
+        
+        renderHeading();
+        
+        // Clean up invalid dates before loading new year data
+        // This removes any dates that don't belong to the new year/month combination
+        cleanupStatusMapForCurrentMonth();
+        
+        // Load timesheet data and then synchronize all components
+        loadTimesheetForCurrentSelection().then(() => {
+          // Ensure calendar, summary, and report all update synchronously
+          // Call renderCalendar directly - it will call updateSummaryAndReport internally
+          renderCalendar();
+        }).catch((error) => {
+          console.error('Error loading timesheet after year change:', error);
+          // Still render calendar even if data load fails
+          renderCalendar();
+        });
+      });
+      if (inputName) inputName.addEventListener('input', () => { state.name = inputName.value || 'Unnamed'; renderHeading(); });
+      if (inputCompany) inputCompany.addEventListener('input', () => { state.company = inputCompany.value || ''; renderHeading(); });
+      if (inputEmpId) inputEmpId.addEventListener('input', () => {
+        state.empId = inputEmpId.value || '';
+        renderHeading();
+        // Reload timesheet when employee ID changes
+        loadTimesheetForCurrentSelection().then(() => {
+          if (window.__renderCalendar) window.__renderCalendar();
+        });
+      });
+
+      if (btnExportSKP) btnExportSKP.addEventListener('click', () => exportExcel('skp'));
+    const btnExportTemplate = document.getElementById('btnExportTemplate');
+    if (btnExportTemplate) btnExportTemplate.addEventListener('click', () => exportTemplateSKP());
+    if (btnExport) btnExport.addEventListener('click', () => exportExcel('plain'));
+      if (btnExportCSV) btnExportCSV.addEventListener('click', exportCSV);
+
+      if (btnMarkWeekends) btnMarkWeekends.addEventListener('click', markWeekendsAsHoliday);
+      if (btnClearMonth) btnClearMonth.addEventListener('click', () => {
+        showConfirmModal({
+          title: 'Clear statuses',
+          message: 'Clear all statuses for this month?',
+          confirmText: 'Yes, clear',
+          cancelText: 'Keep statuses'
+        }).then((confirmed) => {
+          if (confirmed) clearMonth();
+        });
+      });
+      if (btnSendTop) btnSendTop.addEventListener('click', () => createSendModal());
+      if (btnPrevMonth) btnPrevMonth.addEventListener('click', () => {
+        const oldMonth = state.monthIndex;
+        const oldYear = state.year;
+        
+        state.monthIndex = (state.monthIndex + 11) % 12;
+        if (state.monthIndex === 11) state.year--;
+        
+        // Validate state after change
+        if (state.monthIndex < 0 || state.monthIndex > 11) {
+          console.error(`Invalid month index after prev: ${state.monthIndex}`);
+          state.monthIndex = oldMonth;
+          state.year = oldYear;
+          return;
+        }
+        
+        renderHeading();
+        if (selectMonth) selectMonth.value = state.monthIndex;
+        if (selectYear) selectYear.value = state.year;
+        
+        // Clean up invalid dates and synchronize all components
+        // This removes any dates that don't belong to the new month/year
+        cleanupStatusMapForCurrentMonth();
+        
+        // Load timesheet data and then synchronize all components
+        loadTimesheetForCurrentSelection().then(() => {
+          // Call renderCalendar directly - it will call updateSummaryAndReport internally
+          renderCalendar();
+        }).catch((error) => {
+          console.error('Error loading timesheet after prev month:', error);
+          // Still render calendar even if data load fails
+          renderCalendar();
+        });
+      });
+      if (btnNextMonth) btnNextMonth.addEventListener('click', () => {
+        const oldMonth = state.monthIndex;
+        const oldYear = state.year;
+        
+        state.monthIndex = (state.monthIndex + 1) % 12;
+        if (state.monthIndex === 0) state.year++;
+        
+        // Validate state after change
+        if (state.monthIndex < 0 || state.monthIndex > 11) {
+          console.error(`Invalid month index after next: ${state.monthIndex}`);
+          state.monthIndex = oldMonth;
+          state.year = oldYear;
+          return;
+        }
+        
+        renderHeading();
+        if (selectMonth) selectMonth.value = state.monthIndex;
+        if (selectYear) selectYear.value = state.year;
+        
+        // Clean up invalid dates and synchronize all components
+        // This removes any dates that don't belong to the new month/year
+        cleanupStatusMapForCurrentMonth();
+        
+        // Load timesheet data and then synchronize all components
+        loadTimesheetForCurrentSelection().then(() => {
+          // Call renderCalendar directly - it will call updateSummaryAndReport internally
+          renderCalendar();
+        }).catch((error) => {
+          console.error('Error loading timesheet after next month:', error);
+          // Still render calendar even if data load fails
+          renderCalendar();
+        });
+      });
+      if (btnToggleWeekendColor) btnToggleWeekendColor.addEventListener('click', markWeekends);
+
+      // init - only if calendar element exists
+      if (calendarEl && headingMonth) {
+        renderHeading();
+        renderCalendar();
+      } else {
+        console.error('Required elements not found. Calendar:', !!calendarEl, 'Heading:', !!headingMonth);
+        setTimeout(initTimesheet, 100); // Retry
+        return;
+      }
+      
+      window.__timesheetState = state;
+      window.__renderCalendar = renderCalendar;
+      window.__updateSummaryAndReport = updateSummaryAndReport;
+      window.exportWithTemplateXlsxPopulate = exportWithTemplateXlsxPopulate;
+      // Expose helper functions globally for saveTimesheetToDB
+      window.__daysInMonth = daysInMonth;
+      window.__isoDate = isoDate;
+      window.__monthNames = monthNames;
+
+      // Profile sidebar disabled
+      // initUserProfileSidebar();
+      }
+      
+      // DOM ready check
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initTimesheet);
+      } else {
+        // DOM already loaded, but wait a tick to ensure all elements are available
+        setTimeout(initTimesheet, 0);
+      }
+    })();
+
+    // Check if user has SKP access
+    async function checkSKPUserStatus() {
+      const auth = window.firebaseAuth || (window.firebase && window.firebase.auth);
+      const db = window.firebaseDb || (window.firebase && window.firebase.firestore);
+
+      if (!auth) return;
+
+      try {
+        // Wait for auth to be ready
+        await new Promise((resolve) => {
+          if (auth.currentUser) {
+            resolve();
+          } else {
+            const unsubscribe = auth.onAuthStateChanged(() => {
+              unsubscribe();
+              resolve();
+            });
+            setTimeout(resolve, 1000);
+          }
+        });
+
+        if (!currentUser || !currentUserId) return;
+
+        if (db && window.firebase && window.firebase.firestoreFunctions) {
+          try {
+            const { doc, getDoc } = window.firebase.firestoreFunctions;
+            const userDocRef = doc(db, 'users', currentUserId);
+            const userDoc = await getDoc(userDocRef);
+
+            if (userDoc.exists) {
+              const userData = userDoc.data();
+              const isSKPUser = userData.isSKPUser || false;
+
+              const templateSelect = document.getElementById('templateSelect');
+              const btnExportSKP = document.getElementById('btnExportSKP');
+
+              if (!isSKPUser) {
+                // Hide SKP option from dropdown
+                if (templateSelect) {
+                  const skpOption = templateSelect.querySelector('option[value="indian_skp"]');
+                  if (skpOption) skpOption.remove();
+                  // Set default to US Standard
+                  templateSelect.value = 'us_standard';
+                }
+                // Hide SKP button
+                if (btnExportSKP) btnExportSKP.style.display = 'none';
+              } else {
+                // Show SKP option and button
+                if (btnExportSKP) btnExportSKP.style.display = 'inline-block';
+              }
+            }
+          } catch (firestoreErr) {
+            console.warn('Firestore error checking SKP status:', firestoreErr);
+          }
+        }
+      } catch (err) {
+        console.error('Error checking SKP status:', err);
+      }
+    }
+
+    // Profile Sidebar Functions
+    function initUserProfileSidebar() {
+      const sidebarToggle = document.getElementById('sidebarToggle');
+      const sidebarClose = document.getElementById('sidebarClose');
+      const sidebarMinimal = document.getElementById('sidebarMinimal');
+      const sidebarExpanded = document.getElementById('sidebarExpanded');
+
+      if (!sidebarToggle || !sidebarClose || !sidebarMinimal || !sidebarExpanded) {
+        console.error('Sidebar elements not found. Check HTML structure.');
+        console.log('Missing elements:', {
+          sidebarToggle: !!sidebarToggle,
+          sidebarClose: !!sidebarClose,
+          sidebarMinimal: !!sidebarMinimal,
+          sidebarExpanded: !!sidebarExpanded
+        });
+        return;
+      }
+
+      if (sidebarToggle) {
+        sidebarToggle.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (sidebarExpanded) {
+            sidebarExpanded.classList.add('show');
+            // Hide minimal sidebar when expanded
+            if (sidebarMinimal) sidebarMinimal.style.opacity = '0';
+            setTimeout(() => {
+              if (sidebarMinimal) sidebarMinimal.style.pointerEvents = 'none';
+            }, 150);
+          }
+          loadUserProfile();
+        });
+      }
+
+      if (sidebarClose) {
+        sidebarClose.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (sidebarExpanded) {
+            sidebarExpanded.classList.remove('show');
+            // Show minimal sidebar when collapsed
+            if (sidebarMinimal) {
+              sidebarMinimal.style.pointerEvents = 'auto';
+              sidebarMinimal.style.opacity = '1';
+            }
+          }
+        });
+      }
+
+      // Close sidebar when clicking outside
+      document.addEventListener('click', (e) => {
+        if (sidebarExpanded && sidebarExpanded.classList.contains('show')) {
+          const isClickInside = sidebarExpanded.contains(e.target);
+          const isClickOnToggle = sidebarToggle && sidebarToggle.contains(e.target);
+
+          if (!isClickInside && !isClickOnToggle) {
+            sidebarExpanded.classList.remove('show');
+            if (sidebarMinimal) {
+              sidebarMinimal.style.pointerEvents = 'auto';
+              sidebarMinimal.style.opacity = '1';
+            }
+          }
+        }
+      });
+
+      // Menu navigation handlers
+      const menuProfileManagement = document.getElementById('menuProfileManagement');
+      const menuTimesheetManagement = document.getElementById('menuTimesheetManagement');
+      const submenuProfile = document.getElementById('submenuProfile');
+      const submenuTimesheet = document.getElementById('submenuTimesheet');
+      const backFromProfile = document.getElementById('backFromProfile');
+      const backFromTimesheet = document.getElementById('backFromTimesheet');
+
+      function showMainMenu() {
+        if (submenuProfile) submenuProfile.style.display = 'none';
+        if (submenuTimesheet) submenuTimesheet.style.display = 'none';
+      }
+
+      function showSubmenu(submenu) {
+        if (submenuProfile) submenuProfile.style.display = 'none';
+        if (submenuTimesheet) submenuTimesheet.style.display = 'none';
+        if (submenu) submenu.style.display = 'flex';
+      }
+
+      if (menuProfileManagement) {
+        menuProfileManagement.addEventListener('click', () => {
+          showSubmenu(submenuProfile);
+          loadUserProfile();
+        });
+      }
+
+      if (menuTimesheetManagement) {
+        menuTimesheetManagement.addEventListener('click', () => {
+          showSubmenu(submenuTimesheet);
+          const auth = window.firebaseAuth;
+          if (auth && auth.currentUser) {
+            loadSavedTimesheetsCount(auth.currentUser.uid);
+          }
+        });
+      }
+
+      if (backFromProfile) {
+        backFromProfile.addEventListener('click', () => {
+          showMainMenu();
+        });
+      }
+
+      if (backFromTimesheet) {
+        backFromTimesheet.addEventListener('click', () => {
+          showMainMenu();
+        });
+      }
+
+      // Load initial profile data
+      setTimeout(() => loadUserProfile(), 500);
+    }
+
+    async function loadUserProfile() {
+      // Get state from window (set by main IIFE)
+      const currentState = window.__timesheetState || { name: 'User', company: '', empId: '' };
+
+      // Check if Firebase is available - use proper Firestore import
+      let auth, db;
+      try {
+        if (window.firebaseAuth) {
+          auth = window.firebaseAuth;
+        }
+        if (window.firebaseDb) {
+          db = window.firebaseDb;
+        } else if (window.firebase && window.firebase.firestore) {
+          db = window.firebase.firestore();
+        }
+      } catch (e) {
+        console.warn('Firebase not available:', e);
+      }
+
+      if (!auth) {
+        console.warn('Firebase not loaded, using default profile');
+        updateProfileUI({
+          displayName: currentState.name || 'User',
+          email: 'user@example.com',
+          company: currentState.company || '',
+          empId: currentState.empId || ''
+        });
+        return;
+      }
+
+      try {
+        // Wait for auth to be ready
+        await new Promise((resolve) => {
+          if (auth.currentUser) {
+            resolve();
+          } else {
+            const unsubscribe = auth.onAuthStateChanged(() => {
+              unsubscribe();
+              resolve();
+            });
+            setTimeout(resolve, 1000);
+          }
+        });
+
+        const user = auth.currentUser || currentUser;
+
+        if (!user) {
+          updateProfileUI({
+            displayName: currentState.name || 'Guest',
+            email: 'Not logged in',
+            company: currentState.company || '',
+            empId: currentState.empId || ''
+          });
+          return;
+        }
+
+        // Load from Firestore - use proper Firestore API
+        if (db && window.firebase && window.firebase.firestoreFunctions) {
+          try {
+            const { doc, getDoc } = window.firebase.firestoreFunctions;
+            const userId = user.uid;
+            const userEmail = user.email || '';
+            const userDocRef = doc(db, 'users', userId);
+            const userDoc = await getDoc(userDocRef);
+
+            if (userDoc.exists) {
+              const userData = userDoc.data();
+
+              // Update state from user profile (reference structure: name, company, empId, isSKPUser)
+              if (userData.name) currentState.name = userData.name;
+              if (userData.company) currentState.company = userData.company;
+              if (userData.empId) currentState.empId = userData.empId;
+
+              // Update form fields
+              const inputCompany = document.getElementById('inputCompany');
+              const inputName = document.getElementById('inputName');
+              const inputEmpId = document.getElementById('inputEmpId');
+              if (inputCompany) inputCompany.value = currentState.company;
+              if (inputName) inputName.value = currentState.name;
+              if (inputEmpId) inputEmpId.value = currentState.empId;
+
+              updateProfileUI({
+                displayName: userData.name || user.displayName || currentState.name || 'User',
+                email: userEmail || userData.email || '',
+                lastLogin: userData.lastLogin ? (userData.lastLogin.toDate ? userData.lastLogin.toDate().toLocaleString() : new Date(userData.lastLogin).toLocaleString()) : '-',
+                role: userData.role || 'user',
+                photoURL: user.photoURL || userData.photoURL || null,
+                company: userData.company || currentState.company || '',
+                empId: userData.empId || currentState.empId || ''
+              });
+
+              // Load saved timesheets count
+              loadSavedTimesheetsCount(userId);
+            } else {
+              // No user profile in Firestore yet - Generate defaults from Auth
+              // CRITICAL: Generate a unique empId to prevent saving to shared 'NE-2047' document
+              let newEmpId = '';
+              if (userEmail) {
+                // Generate from email (e.g. LIKHICHAND from likhichand@gmail.com)
+                const prefix = user.email.split('@')[0].toUpperCase().replace(/[^A-Z0-9]/g, '');
+                newEmpId = 'EMP-' + prefix.substring(0, 10);
+              } else {
+                newEmpId = 'EMP-' + user.uid.substring(0, 6).toUpperCase();
+              }
+
+              // Update state with generated defaults, ignoring template 'NE-2047'
+              currentState.name = user.displayName || user.email.split('@')[0] || 'User';
+              // Only override empId if it's currently the template default
+              if (!currentState.empId || currentState.empId === 'NE-2047') {
+                currentState.empId = newEmpId;
+              }
+
+              // Update form fields immediately
+              const inputName = document.getElementById('inputName');
+              const inputEmpId = document.getElementById('inputEmpId');
+              if (inputName) inputName.value = currentState.name;
+              if (inputEmpId) inputEmpId.value = currentState.empId;
+
+              updateProfileUI({
+                displayName: user.displayName || currentState.name || 'User',
+                email: userEmail || '',
+                lastLogin: '-',
+                role: 'user',
+                company: currentState.company || '',
+                empId: currentState.empId
+              });
+            }
+          } catch (firestoreErr) {
+            console.warn('Firestore error, using auth data:', firestoreErr);
+
+            // Fallback generation on error too
+            if (!currentState.empId || currentState.empId === 'NE-2047') {
+              const prefix = user.email ? user.email.split('@')[0].toUpperCase() : 'USER';
+              currentState.empId = 'EMP-' + prefix.substring(0, 8);
+            }
+
+            const inputEmpId = document.getElementById('inputEmpId');
+            if (inputEmpId) inputEmpId.value = currentState.empId;
+
+            updateProfileUI({
+              displayName: user.displayName || currentState.name || 'User',
+              email: user.email || '',
+              lastLogin: '-',
+              role: 'user',
+              company: currentState.company || '',
+              empId: currentState.empId
+            });
+          }
+        } else {
+          // Fallback if DB not ready
+          if (!currentState.empId || currentState.empId === 'NE-2047') {
+            const prefix = user.email ? user.email.split('@')[0].toUpperCase() : 'USER';
+            currentState.empId = 'EMP-' + prefix.substring(0, 8);
+          }
+          const inputEmpId = document.getElementById('inputEmpId');
+          if (inputEmpId) inputEmpId.value = currentState.empId;
+
+          updateProfileUI({
+            displayName: user.displayName || currentState.name || 'User',
+            email: user.email || '',
+            lastLogin: '-',
+            role: 'user',
+            company: currentState.company || '',
+            empId: currentState.empId
+          });
+        }
+      } catch (err) {
+        console.error('Error loading user profile:', err);
+        updateProfileUI({
+          displayName: currentState.name || 'User',
+          email: 'Error loading',
+          company: currentState.company || '',
+          empId: currentState.empId || ''
+        });
+      }
+    }
+
+    // Save user profile to Firestore
+    async function saveUserProfile(name, company, empId, isSKPUser = false) {
+      const auth = window.firebaseAuth;
+      const db = window.firebaseDb;
+
+      if (!auth || !db) {
+        showToast('Firebase not initialized', 'error');
+        return false;
+      }
+
+      const user = auth.currentUser;
+      if (!user) {
+        showToast('Please log in to save profile', 'warning');
+        return false;
+      }
+
+      try {
+        const { doc, setDoc } = window.firebase.firestoreFunctions;
+        const userRef = doc(db, 'users', user.uid);
+
+        await setDoc(userRef, {
+          name: name || '',
+          company: company || '',
+          empId: empId || '',
+          isSKPUser: isSKPUser || false
+        }, { merge: true });
+
+        // Update state
+        const currentState = window.__timesheetState;
+        if (currentState) {
+          if (name) currentState.name = name;
+          if (company) currentState.company = company;
+          if (empId) currentState.empId = empId;
+        }
+
+        return true;
+      } catch (err) {
+        console.error('Error saving user profile:', err);
+        showToast('Failed to save profile: ' + err.message, 'error');
+        return false;
+      }
+    }
+
+    function updateProfileUI(data) {
+      const nameEl = document.getElementById('profileName');
+      const emailEl = document.getElementById('profileEmail');
+      const nameDetailEl = document.getElementById('profileNameDetail');
+      const emailDetailEl = document.getElementById('profileEmailDetail');
+      const lastLoginEl = document.getElementById('profileLastLogin');
+      const roleEl = document.getElementById('profileRole');
+      const nameMinimalEl = document.getElementById('sidebarNameMinimal');
+      const avatarPlaceholder = document.getElementById('avatarPlaceholder');
+      const avatarPlaceholderLarge = document.getElementById('avatarPlaceholderLarge');
+      const companyEl = document.getElementById('profileCompany');
+      const empIdEl = document.getElementById('profileEmpId');
+      const companySection = document.getElementById('companySection');
+
+      const displayName = data.displayName || data.name || 'User';
+
+      if (nameEl) nameEl.textContent = displayName;
+      if (emailEl) emailEl.textContent = data.email || '-';
+      if (nameDetailEl) nameDetailEl.textContent = displayName;
+      if (emailDetailEl) emailDetailEl.textContent = data.email || '-';
+      if (lastLoginEl) lastLoginEl.textContent = data.lastLogin || '-';
+      if (roleEl) roleEl.textContent = data.role || '-';
+      if (nameMinimalEl) nameMinimalEl.textContent = displayName.substring(0, 8);
+
+      const firstLetter = displayName.charAt(0).toUpperCase();
+      if (avatarPlaceholder) avatarPlaceholder.textContent = firstLetter;
+      if (avatarPlaceholderLarge) avatarPlaceholderLarge.textContent = firstLetter;
+
+      // Update company info
+      if (data.company || data.empId) {
+        if (companySection) companySection.style.display = 'block';
+        if (companyEl) companyEl.textContent = data.company || '-';
+        if (empIdEl) empIdEl.textContent = data.empId || '-';
+      }
+
+      // Update avatar if photo URL available
+      const avatarEl = document.getElementById('sidebarAvatar');
+      const avatarLargeEl = document.getElementById('avatarLarge');
+
+      if (data.photoURL) {
+        if (avatarEl) {
+          avatarEl.innerHTML = `<img src="${data.photoURL}" alt="Profile" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+        }
+        if (avatarLargeEl) {
+          avatarLargeEl.innerHTML = `<img src="${data.photoURL}" alt="Profile" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+        }
+      } else {
+        // Reset to placeholder if no photo
+        if (avatarEl) {
+          const placeholder = avatarEl.querySelector('.avatar-placeholder');
+          if (placeholder) {
+            placeholder.textContent = firstLetter;
+          } else {
+            avatarEl.innerHTML = `<div class="avatar-placeholder">${firstLetter}</div>`;
+          }
+        }
+        if (avatarLargeEl) {
+          const placeholder = avatarLargeEl.querySelector('.avatar-placeholder-large');
+          if (placeholder) {
+            placeholder.textContent = firstLetter;
+          } else {
+            avatarLargeEl.innerHTML = `<div class="avatar-placeholder-large">${firstLetter}</div>`;
+          }
+        }
+      }
+    }
+
+    async function loadSavedTimesheetsCount(userId) {
+      // Clear previous data first
+      const statSavedEl = document.getElementById('statSaved');
+      const statLastExportEl = document.getElementById('statLastExport');
+      const timesheetsList = document.getElementById('timesheetsList');
+      if (statSavedEl) statSavedEl.textContent = '0';
+      if (statLastExportEl) statLastExportEl.textContent = '-';
+      if (timesheetsList) timesheetsList.innerHTML = '<div class="empty-state">No saved timesheets</div>';
+
+      if (!userId) {
+        return;
+      }
+
+      let db;
+      try {
+        if (window.firebaseDb) {
+          db = window.firebaseDb;
+        } else {
+          return;
+        }
+      } catch (e) {
+        return;
+      }
+
+      if (!db || !window.firebase || !window.firebase.firestoreFunctions) return;
+
+      try {
+        const { collection, query, where, orderBy, limit, getDocs } = window.firebase.firestoreFunctions;
+        const timesheetsRef = collection(db, 'timesheets');
+
+        // Try query with orderBy, fallback to simple query if index missing
+        let snapshot;
+        try {
+          const q = query(
+            timesheetsRef,
+            where('userId', '==', userId),
+            orderBy('savedAt', 'desc'),
+            limit(10)
+          );
+          snapshot = await getDocs(q);
+        } catch (indexError) {
+          if (indexError.message && indexError.message.includes('index')) {
+            console.warn('Firestore index not created yet. Using simple query.');
+            // Fallback: query without orderBy
+            const q = query(
+              timesheetsRef,
+              where('userId', '==', userId),
+              limit(10)
+            );
+            snapshot = await getDocs(q);
+          } else {
+            throw indexError;
+          }
+        }
+
+        const count = snapshot.size;
+        if (statSavedEl) statSavedEl.textContent = count;
+
+        // Load last export date
+        if (snapshot.size > 0) {
+          const lastExport = snapshot.docs[0].data().exportedAt || snapshot.docs[0].data().savedAt;
+
+          if (lastExport) {
+            const lastExportDate = lastExport.toDate ? lastExport.toDate() : new Date(lastExport);
+            if (statLastExportEl) statLastExportEl.textContent = lastExportDate.toLocaleDateString();
+          }
+        }
+
+        // Load saved timesheets list
+        loadSavedTimesheetsList(snapshot);
+      } catch (err) {
+        console.warn('Skipping timesheet count (non-critical):', err.message);
+        // Don't show error to user, just skip the count
+      }
+    }
+
+    function loadSavedTimesheetsList(snapshot) {
+      const timesheetsList = document.getElementById('timesheetsList');
+      if (!timesheetsList) return;
+
+      if (!snapshot || snapshot.empty) {
+        timesheetsList.innerHTML = '<div class="empty-state">No saved timesheets</div>';
+        return;
+      }
+
+      timesheetsList.innerHTML = snapshot.docs.map(doc => {
+        const data = doc.data();
+        const savedDate = data.savedAt ? (data.savedAt.toDate ? data.savedAt.toDate() : new Date(data.savedAt)) : new Date();
+        return `
+          <div class="timesheet-item" data-id="${doc.id}">
+            <div class="timesheet-item-header">${data.month || ''} ${data.year || ''}</div>
+            <div class="timesheet-item-meta">
+              ${data.employeeName || ''} • ${data.templateUsed || 'default'} • ${savedDate.toLocaleDateString()}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // Add click handlers to load timesheet
+      timesheetsList.querySelectorAll('.timesheet-item').forEach(item => {
+        item.addEventListener('click', () => {
+          const timesheetId = item.dataset.id;
+          loadTimesheetFromSaved(timesheetId);
+        });
+      });
+    }
+
+    async function loadTimesheetFromSaved(timesheetId) {
+      const currentState = window.__timesheetState;
+      if (!currentState) {
+        showToast('Application not initialized', 'error');
+        return;
+      }
+
+      let db;
+      try {
+        if (window.firebaseDb) {
+          db = window.firebaseDb;
+        } else {
+          showToast('Database not available', 'error');
+          return;
+        }
+      } catch (e) {
+        showToast('Database error', 'error');
+        return;
+      }
+
+      if (!db || !window.firebase || !window.firebase.firestoreFunctions) {
+        alert('Firestore not available');
+        return;
+      }
+
+      try {
+        const { doc, getDoc } = window.firebase.firestoreFunctions;
+        const timesheetDocRef = doc(db, 'timesheets', timesheetId);
+        const timesheetDoc = await getDoc(timesheetDocRef);
+
+        if (!timesheetDoc.exists()) {
+          showToast('Timesheet not found', 'error');
+          return;
+        }
+
+        const data = timesheetDoc.data();
+
+        // Set month/year from document data (new structure uses monthIndex)
+        if (data.year !== undefined) {
+          currentState.year = data.year;
+          const selectYear = document.getElementById('selectYear');
+          if (selectYear) selectYear.value = data.year;
+        }
+        if (data.month !== undefined) {
+          currentState.monthIndex = data.month;
+          const selectMonth = document.getElementById('selectMonth');
+          if (selectMonth) selectMonth.value = data.month;
+        }
+
+        // Load statusMap directly (new structure)
+        if (data.statusMap && typeof data.statusMap === 'object') {
+          currentState.statusMap = data.statusMap;
+        } else {
+          // Fallback: handle old structure with attendanceRows
+          currentState.statusMap = {};
+          if (Array.isArray(data.attendanceRows)) {
+            data.attendanceRows.forEach(row => {
+              if (row.date && row.status) {
+                let iso;
+                if (row.date.includes('/')) {
+                  const dateParts = row.date.split('/');
+                  if (dateParts.length === 3) {
+                    iso = `${dateParts[2]}-${dateParts[0].padStart(2, '0')}-${dateParts[1].padStart(2, '0')}`;
+                  }
+                } else if (row.date.includes('-')) {
+                  iso = row.date;
+                } else {
+                  const d = new Date(row.date);
+                  if (!isNaN(d.getTime())) {
+                    iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                  }
+                }
+                if (iso) {
+                  currentState.statusMap[iso] = row.status;
+                }
+              }
+            });
+          }
+        }
+
+        // Load user profile data if available (from users/{uid})
+        const auth = window.firebaseAuth;
+        if (auth && auth.currentUser) {
+          try {
+            const userDocRef = doc(db, 'users', auth.currentUser.uid);
+            const userDoc = await getDoc(userDocRef);
+            if (userDoc.exists()) {
+              const userData = userDoc.data();
+              if (userData.name) currentState.name = userData.name;
+              if (userData.company) currentState.company = userData.company;
+              if (userData.empId) currentState.empId = userData.empId;
+
+              // Update form fields
+              const inputCompany = document.getElementById('inputCompany');
+              const inputName = document.getElementById('inputName');
+              const inputEmpId = document.getElementById('inputEmpId');
+              if (inputCompany) inputCompany.value = currentState.company;
+              if (inputName) inputName.value = currentState.name;
+              if (inputEmpId) inputEmpId.value = currentState.empId;
+            }
+          } catch (userErr) {
+            console.warn('Error loading user profile:', userErr);
+          }
+        }
+
+        // Trigger input events to update UI
+        if (inputCompany) {
+          inputCompany.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        if (inputName) {
+          inputName.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        if (inputEmpId) {
+          inputEmpId.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        if (selectMonth) {
+          selectMonth.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        if (selectYear) {
+          selectYear.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+
+        // Call render functions if available
+        if (window.__renderCalendar) {
+          window.__renderCalendar();
+        }
+        if (window.__renderHeading) {
+          window.__renderHeading();
+        }
+
+        hidePageLoader();
+        showToast('Timesheet loaded successfully!', 'success');
+      } catch (err) {
+        if (err && err.code === 'permission-denied') {
+          console.warn('Timesheet read denied (insufficient permissions). Ensure you are logged in and the doc exists.');
+          if (window.showPermissionModal) {
+            window.showPermissionModal('You do not have permission to read this timesheet. Please sign in with access or request permission.');
+          }
+        } else {
+          console.error('Error loading timesheet:', err);
+          showToast('Failed to load timesheet: ' + err.message, 'error');
+        }
+        hidePageLoader();
+      }
+    }
+
+    async function loadLatestTimesheetForUser(userId, employeeId) {
+      if (!userId || !window.firebase || !window.firebase.firestoreFunctions) return null;
+      const { collection, query, where, orderBy, limit, getDocs } = window.firebase.firestoreFunctions;
+      const db = window.firebaseDb;
+      if (!db) return null;
+
+      const filters = [where('userId', '==', userId)];
+      if (employeeId) {
+        filters.push(where('employeeId', '==', employeeId));
+      }
+
+      let snapshot = null;
+      try {
+        const q = query(collection(db, 'timesheets'), ...filters, orderBy('savedAt', 'desc'), limit(1));
+        snapshot = await getDocs(q);
+      } catch (orderErr) {
+        console.warn('Saved timesheet order query failed, falling back:', orderErr?.message || orderErr);
+        try {
+          const q = query(collection(db, 'timesheets'), ...filters, limit(1));
+          snapshot = await getDocs(q);
+        } catch (fallbackErr) {
+          console.error('Fallback query failed:', fallbackErr);
+          return null;
+        }
+      }
+
+      if (!snapshot || snapshot.empty) {
+        return null;
+      }
+
+      return snapshot.docs[0].id;
+    }
+
+    // Save timesheet to database - Direct Firestore operation
+    async function saveTimesheetToDB() {
+      const btnSave = document.getElementById('btnSaveTimesheet');
+      const btnSaveTop = document.getElementById('btnSaveTimesheetTop');
+      const buttons = [btnSave, btnSaveTop].filter(Boolean);
+      buttons.forEach(btn => {
+        btn.dataset.originalText = btn.dataset.originalText || btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'Saving...';
+      });
+      showPageLoader('Saving timesheet...');
+
+      const restoreButtons = () => {
+        buttons.forEach(btn => {
+          btn.disabled = false;
+          btn.textContent = btn.dataset.originalText || 'Save Timesheet';
+        });
+      };
+
+      try {
+        const auth = window.firebaseAuth || (window.firebase && window.firebase.auth);
+        const db = window.firebaseDb;
+        const currentState = window.__timesheetState;
+
+        if (!currentState) {
+          showToast('Application state not available', 'error');
+          restoreButtons();
+          return;
+        }
+
+        if (!auth) {
+          showToast('Authentication not available. Please refresh the page.', 'error');
+          restoreButtons();
+          return;
+        }
+
+        // Wait for auth state to be ready
+        let user = auth.currentUser || currentUser;
+
+        // Log auth state for debugging
+        console.log('Save timesheet - Auth check:', {
+          hasAuth: !!auth,
+          hasUser: !!user,
+          userId: user ? user.uid : 'none',
+          userEmail: user ? user.email : 'none'
+        });
+
+        if (!user || !user.uid) {
+          showToast('Authentication not ready. Please refresh or sign in again.', 'error');
+          restoreButtons();
+          return;
+        }
+
+        // Upsert user profile before saving timesheet
+        await upsertUserProfile(user, currentState);
+
+        const savePayload = () => {
+          // Use global helper functions or define locally if not available
+          const daysInMonth = window.__daysInMonth || ((y, m) => new Date(y, m + 1, 0).getDate());
+          const isoDate = window.__isoDate || ((y, m, d) => `${String(y).padStart(4, '0')}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
+          const monthNames = window.__monthNames || ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+          const totalDays = daysInMonth(currentState.year, currentState.monthIndex);
+          let present = 0, leave = 0, comp = 0, hol = 0;
+          const attendanceRows = [];
+          for (let d = 1; d <= totalDays; d++) {
+            const iso = isoDate(currentState.year, currentState.monthIndex, d);
+            const status = currentState.statusMap[iso] || '';
+            if (status === 'P') present++;
+            if (status === 'L') leave++;
+            if (status === 'C') comp++;
+            if (status === 'H' || status === 'ST' || status === 'SU') hol++;
+            attendanceRows.push({ date: iso, status });
+          }
+          const workingDays = Math.max(0, totalDays - hol);
+          const attendancePercent = workingDays > 0 ? Number(((present / workingDays) * 100).toFixed(1)) : 0;
+          return {
+            userId: user ? user.uid : 'local-user',
+            company: currentState.company || '',
+            employeeName: currentState.name || '',
+            employeeId: currentState.empId || '',
+            month: monthNames[currentState.monthIndex] || '',
+            year: currentState.year,
+            attendanceRows,
+            summary: {
+              totalPresent: present,
+              totalLeave: leave,
+              totalHoliday: hol,
+              attendancePercent
+            },
+            templateUsed: (document.getElementById('templateSelect') && document.getElementById('templateSelect').value) || 'default',
+            location: window.__userLocation || {}
+          };
+        };
+
+        if (!db || !window.firebase || !window.firebase.firestoreFunctions) {
+          showToast('Database not available. Please refresh the page.', 'error');
+          restoreButtons();
+          return;
+        }
+
+        let savedViaFirestore = false;
+        try {
+          const { doc, setDoc, getDoc, serverTimestamp } = window.firebase.firestoreFunctions;
+
+          const empId = currentState.empId || '';
+          const timesheetDocId = getTimesheetDocId(user.uid, currentState.year, currentState.monthIndex);
+          const timesheetRef = doc(db, 'timesheets', timesheetDocId);
+
+          console.log('Save timesheet - Document path:', {
+            docId: timesheetDocId,
+            userId: user.uid,
+            userEmail: user.email
+          });
+
+          // Check if document exists (read operation)
+          let existingDoc;
+          let isNewDocument = true;
+          let existingData = {};
+
+          try {
+            existingDoc = await getDoc(timesheetRef);
+            isNewDocument = !existingDoc.exists();
+            if (!isNewDocument) {
+              existingData = existingDoc.data() || {};
+              console.log('Save timesheet - Document exists, will update:', {
+                existingUid: existingData.uid || 'none',
+                currentUserUid: user.uid
+              });
+            } else {
+              console.log('Save timesheet - Document does not exist, will create');
+            }
+          } catch (readError) {
+            // If read fails, assume it's a new document (might be permission issue on read, but write might still work)
+            console.warn('Save timesheet - Could not read existing document, will attempt to create:', readError.code || readError.message);
+            isNewDocument = true;
+            existingData = {};
+          }
+
+          // Use current statusMap (user's current view is the source of truth)
+          const statusMapToSave = { ...currentState.statusMap };
+
+          // Prepare document data
+          // STRICT: Always set userId/userEmail to current authenticated user
+          // This satisfies the requirement: "Always write: userId = request.auth.uid"
+          // and ensures legacy documents get migrated to strict ownership on update.
+          const docData = {
+            // Identity & ownership
+            userId: user.uid,
+            userEmail: user.email || '',
+            employeeId: empId,
+            employeeName: currentState.name || '',
+            company: currentState.company || '',
+            // Period
+            year: currentState.year,
+            month: currentState.monthIndex,
+            // State
+            statusMap: statusMapToSave,
+            commentsMap: { ...(currentState.commentsMap || {}) },
+            timezone: getTimezone(),
+            // Audit
+            lastSavedBy: user.uid,
+            lastSavedByEmail: user.email || '',
+            updatedAt: serverTimestamp ? serverTimestamp() : new Date(),
+            savedAt: serverTimestamp ? serverTimestamp() : new Date()
+          };
+
+          // For new documents or if createdAt is missing, set it.
+          // For existing documents, preserve createdAt.
+          if (isNewDocument || !existingData.createdAt) {
+            docData.createdAt = serverTimestamp ? serverTimestamp() : new Date();
+            // check for legacy field 'savedAt' if createdAt is missing
+            if (!isNewDocument && existingData.savedAt) {
+              docData.createdAt = existingData.savedAt;
+            }
+          } else {
+            docData.createdAt = existingData.createdAt;
+          }
+
+          // Legacy compatibility: maintain 'uid' field if system relies on it, sync with userId
+          docData.uid = user.uid;
+
+          console.log('Save timesheet - Data prepared:', {
+            docId: timesheetDocId,
+            isNew: isNewDocument,
+            userId: docData.userId,
+            userEmail: docData.userEmail
+          });
+          await setDoc(timesheetRef, docData, { merge: true });
+
+          console.log('Save timesheet - Success:', {
+            docId: timesheetDocId,
+            operation: isNewDocument ? 'created' : 'updated',
+            userId: user.uid,
+            userEmail: user.email
+          });
+          savedViaFirestore = true;
+        } catch (firestoreError) {
+          console.error('Save timesheet - Firestore error:', {
+            code: firestoreError.code,
+            message: firestoreError.message,
+            userId: user ? user.uid : 'none',
+            userEmail: user ? user.email : 'none'
+          });
+
+          const isPermissionIssue = firestoreError && (
+            firestoreError.code === 'permission-denied' ||
+            /insufficient permissions/i.test(firestoreError.message || '')
+          );
+
+          if (isPermissionIssue) {
+            const errorMsg = `Permission denied. User: ${user ? (user.email || user.uid) : 'Not logged in'}. Please ensure you are logged in and Firestore rules allow authenticated users to save timesheets.`;
+            if (window.showPermissionModal) {
+              window.showPermissionModal(errorMsg);
+            } else {
+              showToast(errorMsg, 'error');
+            }
+            restoreButtons();
+            return;
+          }
+
+          // For other errors, re-throw to be caught by outer catch
+          throw firestoreError;
+        }
+
+        if (!savedViaFirestore) {
+          // Only fall back to backend if Firestore is not available (not if permission was denied)
+          if (!auth || !db || !user || !window.firebase || !window.firebase.firestoreFunctions) {
+            const payload = savePayload();
+            const response = await fetch('/api/save-timesheet', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+              let message = response.statusText;
+              try {
+                const errJson = await response.json();
+                if (errJson && errJson.error) {
+                  message = errJson.error;
+                }
+              } catch (_) { /* ignore parse errors */ }
+              throw new Error(message || 'Backend save failed');
+            }
+
+            const result = await response.json();
+            if (!result || !result.success) {
+              throw new Error((result && result.error) || 'Backend save failed');
+            }
+          } else {
+            // Firestore is available but save failed - this shouldn't happen if we got here
+            throw new Error('Failed to save to Firestore. Please check your permissions.');
+          }
+        }
+
+        showToast('Timesheet saved successfully!', 'success');
+
+        if (savedViaFirestore && typeof loadSavedTimesheetsCount === 'function') {
+          // Get userId from current auth state
+          const currentUserId = auth.currentUser?.uid || currentUser?.uid;
+          if (currentUserId) {
+            loadSavedTimesheetsCount(currentUserId);
+          }
+        }
+      } catch (err) {
+        console.error('Save error:', err);
+        showToast('Failed to save timesheet: ' + err.message, 'error');
+      } finally {
+        restoreButtons();
+        hidePageLoader();
+      }
+    }
+
+    // Wire up save buttons (multiple entry points)
+    const btnSaveTimesheet = document.getElementById('btnSaveTimesheet');
+    if (btnSaveTimesheet) {
+      btnSaveTimesheet.addEventListener('click', saveTimesheetToDB);
+    }
+    const btnSaveTimesheetTop = document.getElementById('btnSaveTimesheetTop');
+    if (btnSaveTimesheetTop) {
+      btnSaveTimesheetTop.addEventListener('click', saveTimesheetToDB);
+    }
+
+    // Wire up back button
+    const btnBack = document.getElementById('btnBack');
+    if (btnBack) {
+      btnBack.addEventListener('click', () => {
+        // Navigate back to home page
+        window.location.href = '/auth/hub.html';
+      });
+    }
+
+    // Get location on page load
+    if (window.getUserLocation) {
+      window.getUserLocation().catch(() => { });
+    }
+  </script>
+
+  <!-- User Profile Sidebar -->
+  <aside id="user-profile-sidebar" class="profile-sidebar">
+    <div class="sidebar-minimal" id="sidebarMinimal">
+      <div class="sidebar-avatar" id="sidebarAvatar">
+        <div class="avatar-placeholder" id="avatarPlaceholder">U</div>
+      </div>
+      <div class="sidebar-name" id="sidebarNameMinimal">User</div>
+      <button class="sidebar-toggle" id="sidebarToggle" title="Open menu">
+        <span class="dropdown-arrow">▼</span>
+      </button>
+    </div>
+    <div class="sidebar-expanded" id="sidebarExpanded">
+      <div class="sidebar-header">
+        <h3>Profile</h3>
+        <button class="sidebar-close" id="sidebarClose" title="Collapse">✕</button>
+      </div>
+      <div class="sidebar-content">
+        <!-- User Profile Header -->
+        <div class="profile-header-section">
+          <div class="profile-avatar-large" id="avatarLarge">
+            <div class="avatar-placeholder-large" id="avatarPlaceholderLarge">U</div>
+          </div>
+          <div class="profile-header-info">
+            <div class="profile-name" id="profileName">-</div>
+            <div class="profile-email" id="profileEmail">-</div>
+          </div>
+        </div>
+
+        <!-- Menu Items -->
+        <div class="menu-section">
+          <button class="menu-item" id="menuProfileManagement">
+            <span class="menu-icon">👤</span>
+            <span class="menu-text">Profile Management</span>
+            <span class="menu-arrow">▶</span>
+          </button>
+          <button class="menu-item" id="menuTimesheetManagement">
+            <span class="menu-icon">📋</span>
+            <span class="menu-text">Timesheet Management</span>
+            <span class="menu-arrow">▶</span>
+          </button>
+        </div>
+
+        <!-- Profile Management Submenu -->
+        <div class="submenu-section" id="submenuProfile" style="display:none">
+          <div class="submenu-header">
+            <button class="submenu-back" id="backFromProfile">← Back</button>
+            <h4>Profile Management</h4>
+          </div>
+          <div class="submenu-content">
+            <div class="profile-info">
+              <div class="info-item">
+                <span class="info-label">Name:</span>
+                <span class="info-value" id="profileNameDetail">-</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Email:</span>
+                <span class="info-value" id="profileEmailDetail">-</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Last Login:</span>
+                <span class="info-value" id="profileLastLogin">-</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Role:</span>
+                <span class="info-value" id="profileRole">-</span>
+              </div>
+            </div>
+            <div class="company-section" id="companySection">
+              <h4>🏢 Company Info</h4>
+              <div class="info-item">
+                <span class="info-label">Company:</span>
+                <span class="info-value" id="profileCompany">-</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Employee ID:</span>
+                <span class="info-value" id="profileEmpId">-</span>
+              </div>
+            </div>
+            <button class="btn-edit-profile" id="btnEditProfile">Edit Profile</button>
+          </div>
+        </div>
+
+        <!-- Timesheet Management Submenu -->
+        <div class="submenu-section" id="submenuTimesheet" style="display:none">
+          <div class="submenu-header">
+            <button class="submenu-back" id="backFromTimesheet">← Back</button>
+            <h4>Timesheet Management</h4>
+          </div>
+          <div class="submenu-content">
+            <div class="stats-section">
+              <h4>📊 Timesheet Stats</h4>
+              <div class="stats-grid">
+                <div class="stat-item">
+                  <span class="stat-label">Saved</span>
+                  <span class="stat-value" id="statSaved">0</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">Last Export</span>
+                  <span class="stat-value" id="statLastExport">-</span>
+                </div>
+              </div>
+            </div>
+            <div class="saved-timesheets-section">
+              <h4>💾 Saved Timesheets</h4>
+              <button class="btn-save-timesheet" id="btnSaveTimesheet">Save Current Timesheet</button>
+              <div class="timesheets-list" id="timesheetsList">
+                <div class="empty-state">No saved timesheets</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <style>
+    .profile-sidebar {
+      position: fixed;
+      right: 0;
+      top: 0;
+      height: 100vh;
+      z-index: 1000;
+      background: #fff;
+      box-shadow: -2px 0 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .sidebar-minimal {
+      width: 80px;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px 8px;
+      background: linear-gradient(180deg, #06b6d4 0%, #10B981 100%);
+      color: #fff;
+      box-shadow: -2px 0 8px rgba(6, 182, 212, 0.2);
+      position: relative;
+      z-index: 1001;
+      transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .sidebar-avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      overflow: hidden;
+      margin-bottom: 8px;
+      background: rgba(255, 255, 255, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .avatar-placeholder {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 20px;
+    }
+
+    .sidebar-name {
+      font-size: 11px;
+      text-align: center;
+      margin-bottom: 12px;
+      word-break: break-word;
+      max-width: 100%;
+    }
+
+    .sidebar-toggle {
+      background: rgba(255, 255, 255, 0.2);
+      border: none;
+      color: #fff;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 12px;
+      transition: background 0.2s;
+    }
+
+    .sidebar-toggle:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    .dropdown-arrow {
+      font-size: 10px;
+      transition: transform 0.3s ease;
+    }
+
+    .sidebar-expanded.show~.sidebar-minimal .dropdown-arrow,
+    .sidebar-minimal:hover .dropdown-arrow {
+      transform: rotate(180deg);
+    }
+
+    .sidebar-expanded {
+      width: 320px;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      background: #fff;
+      overflow-y: auto;
+      position: fixed;
+      right: 0;
+      top: 0;
+      transform: translateX(100%);
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 1002;
+      box-shadow: -2px 0 20px rgba(0, 0, 0, 0.15);
+    }
+
+    .sidebar-expanded.show {
+      transform: translateX(0);
+    }
+
+    .sidebar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .sidebar-header h3 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .sidebar-close {
+      background: none;
+      border: none;
+      font-size: 20px;
+      cursor: pointer;
+      color: #6b7280;
+      padding: 4px;
+    }
+
+    .sidebar-close:hover {
+      color: #111827;
+    }
+
+    /* Hide profile sidebar */
+    #user-profile-sidebar {
+      display: none !important;
+    }
+
+    .sidebar-content {
+      padding: 0;
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    /* Profile Header Section */
+    .profile-header-section {
+      padding: 20px 16px;
+      background: linear-gradient(180deg, #06b6d4 0%, #10B981 100%);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .profile-header-info {
+      flex: 1;
+    }
+
+    .profile-name {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .profile-email {
+      font-size: 12px;
+      opacity: 0.9;
+    }
+
+    /* Menu Section */
+    .menu-section {
+      padding: 8px 0;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .menu-item {
+      width: 100%;
+      padding: 12px 16px;
+      background: none;
+      border: none;
+      text-align: left;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      transition: background 0.2s;
+      color: #111827;
+    }
+
+    .menu-item:hover {
+      background: #f3f4f6;
+    }
+
+    .menu-icon {
+      font-size: 18px;
+      width: 24px;
+      text-align: center;
+    }
+
+    .menu-text {
+      flex: 1;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .menu-arrow {
+      font-size: 12px;
+      color: #6b7280;
+    }
+
+    /* User status pill */
+    #userStatus span.status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    /* Logout button styling */
+    #userStatus .logout-btn {
+      margin-left: 8px;
+      padding: 4px 10px;
+      background: #ef4444;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      transition: background 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    #userStatus .logout-btn:hover {
+      background: #dc2626;
+    }
+
+    #userStatus .logout-btn:active {
+      background: #b91c1c;
+    }
+
+    /* Back button styling */
+    .btn-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      background: #fff;
+      color: #374151;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+
+    .btn-back:hover {
+      background: #f9fafb;
+      border-color: #9ca3af;
+      color: #111827;
+    }
+
+    .btn-back:active {
+      background: #f3f4f6;
+      transform: scale(0.98);
+    }
+
+    /* Controls row spacing */
+    .controls-inline {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      row-gap: 12px;
+      align-items: center;
+    }
+
+    .controls-inline .month-nav {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: nowrap;
+    }
+
+    .controls-inline button,
+    .controls-inline select {
+      flex-shrink: 0;
+    }
+
+    /* Submenu Section */
+    .submenu-section {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: #fff;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .submenu-header {
+      padding: 16px;
+      border-bottom: 1px solid #e5e7eb;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .submenu-header h4 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .submenu-back {
+      background: none;
+      border: none;
+      color: #06b6d4;
+      cursor: pointer;
+      font-size: 14px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      transition: background 0.2s;
+    }
+
+    .submenu-back:hover {
+      background: #f3f4f6;
+    }
+
+    .submenu-content {
+      padding: 16px;
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .profile-section {
+      margin-bottom: 24px;
+    }
+
+    .profile-avatar-large {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .avatar-placeholder-large {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 24px;
+      color: #fff;
+    }
+
+    .profile-info {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .info-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #f3f4f6;
+    }
+
+    .info-label {
+      font-weight: 500;
+      color: #6b7280;
+      font-size: 13px;
+    }
+
+    .info-value {
+      color: #111827;
+      font-size: 13px;
+      text-align: right;
+    }
+
+    .stats-section,
+    .company-section,
+    .saved-timesheets-section {
+      margin-bottom: 24px;
+      padding-top: 16px;
+      border-top: 1px solid #e5e7eb;
+    }
+
+    .stats-section h4,
+    .company-section h4,
+    .saved-timesheets-section h4 {
+      margin: 0 0 12px 0;
+      font-size: 14px;
+      font-weight: 600;
+      color: #111827;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .stat-item {
+      background: #f9fafb;
+      padding: 12px;
+      border-radius: 8px;
+      text-align: center;
+    }
+
+    .stat-label {
+      display: block;
+      font-size: 11px;
+      color: #6b7280;
+      margin-bottom: 4px;
+    }
+
+    .stat-value {
+      display: block;
+      font-size: 18px;
+      font-weight: 600;
+      color: #111827;
+    }
+
+    .btn-save-timesheet {
+      width: 100%;
+      padding: 10px;
+      background: #06b6d4;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-weight: 500;
+      cursor: pointer;
+      margin-bottom: 12px;
+      transition: background 0.2s;
+    }
+
+    .btn-save-timesheet:hover {
+      background: #0891b2;
+    }
+
+    .timesheets-list {
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .timesheet-item {
+      padding: 8px;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .timesheet-item:hover {
+      background: #f9fafb;
+    }
+
+    .timesheet-item-header {
+      font-weight: 500;
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+
+    .timesheet-item-meta {
+      font-size: 11px;
+      color: #6b7280;
+    }
+
+    .empty-state {
+      text-align: center;
+      color: #9ca3af;
+      font-size: 13px;
+      padding: 16px;
+    }
+
+    /* ===== LEGEND ALIGNMENT FIX (SAFE OVERRIDE) ===== */
+
+    .legend .item {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Make pills compact and centered */
+    .legend .item .pill {
+      min-width: 44px;
+      height: 30px;
+      padding: 0;
+      font-size: 12px;
+      font-weight: 800;
+      border-radius: 999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Text below pill */
+    .legend .item span:not(.pill) {
+      font-size: 12px;
+      font-weight: 600;
+      color: #6b7280;
+      text-align: center;
+      white-space: nowrap;
+    }
+  </style>
+</body>
+
+</html>

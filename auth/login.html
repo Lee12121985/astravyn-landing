@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Astravyn | Login</title>
+  <script type="module" src="/auth/firebase-config.js"></script>
+  <style>
+    @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+    :root {
+      --bg: #f8fafc;
+      --panel: rgba(255, 255, 255, 0.9);
+      --text: #0f172a;
+      --muted: #475569;
+      --accent: #4f46e5;
+      --accent-strong: #4338ca;
+      --accent-soft: rgba(79, 70, 229, 0.12);
+      --border: rgba(148, 163, 184, 0.35);
+      --shadow: 0 22px 60px rgba(15, 23, 42, 0.12);
+      --radius: 18px;
+      --input-bg: #f8fafc;
+    }
+    * {
+      box-sizing: border-box;
+      -webkit-font-smoothing: antialiased;
+    }
+    body {
+      margin: 0;
+      font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(900px at 80% 0%, rgba(79, 70, 229, 0.06), transparent 45%),
+        radial-gradient(800px at 10% 20%, rgba(14, 165, 233, 0.08), transparent 40%),
+        var(--bg);
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 32px 16px;
+    }
+    .card {
+      width: min(440px, 100%);
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: calc(var(--radius) + 2px);
+      padding: 28px clamp(20px, 4vw, 32px);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(14px);
+    }
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 12px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent-strong);
+      font-weight: 600;
+      font-size: 13px;
+      border: 1px solid var(--border);
+      letter-spacing: 0.01em;
+    }
+    h1 {
+      margin: 14px 0 8px;
+      font-size: 28px;
+      letter-spacing: -0.01em;
+    }
+    p.sub {
+      margin: 0 0 18px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+    label {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    input {
+      width: 100%;
+      padding: 12px 12px;
+      margin-bottom: 14px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--input-bg);
+      color: var(--text);
+      font-size: 15px;
+      transition: border-color 140ms ease, box-shadow 140ms ease;
+    }
+    input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 4px var(--accent-soft);
+    }
+    .btn {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 15px;
+      transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease, border-color 160ms ease;
+    }
+    .btn:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 4px var(--accent-soft);
+    }
+    .btn.primary {
+      background: linear-gradient(135deg, var(--accent), #6366f1);
+      color: #fff;
+      box-shadow: 0 10px 30px rgba(79, 70, 229, 0.3);
+    }
+    .btn.primary:hover {
+      transform: translateY(-1px);
+      background: linear-gradient(135deg, #4f46e5, #4c51d9);
+    }
+    .btn.ghost {
+      background: transparent;
+      color: var(--accent-strong);
+      border-color: var(--border);
+    }
+    .btn.ghost:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      transform: translateY(-1px);
+    }
+    .or {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--muted);
+      font-weight: 600;
+      margin: 14px 0;
+      font-size: 13px;
+    }
+    .or::before,
+    .or::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+    .link-row {
+      margin-top: 14px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .link-row a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 700;
+    }
+    .link-row a:hover { text-decoration: underline; }
+    .msg {
+      margin: 10px 0;
+      min-height: 20px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--muted);
+    }
+    .msg.success { color: #15803d; }
+    .msg.error { color: #b91c1c; }
+    @media (max-width: 520px) {
+      .card { padding: 22px 18px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="eyebrow">Astravyn Access</div>
+    <h1>Welcome back</h1>
+    <p class="sub">Sign in to access your Astravyn workspace in seconds.</p>
+
+    <div id="message" class="msg" role="status"></div>
+
+    <form id="loginForm">
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" autocomplete="email" required />
+
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required />
+
+      <button class="btn primary" type="submit">Sign in</button>
+    </form>
+
+    <div class="or">or</div>
+
+    <button id="googleBtn" class="btn ghost" type="button">Continue with Google</button>
+
+    <div class="link-row">
+      New to Astravyn? <a href="/auth/signup.html">Create an account</a>
+    </div>
+  </div>
+
+  <script type="module">
+    import { auth, db, googleProvider } from "/auth/firebase-config.js";
+    import {
+      signInWithEmailAndPassword,
+      signInWithPopup
+    } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+    import {
+      doc,
+      getDoc,
+      setDoc,
+      serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+    const form = document.getElementById("loginForm");
+    const googleBtn = document.getElementById("googleBtn");
+    const msg = document.getElementById("message");
+
+    const getTimezone = () => {
+      try {
+        return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+      } catch {
+        return "UTC";
+      }
+    };
+
+    async function upsertUserProfile(user) {
+      if (!user || !db) return;
+      try {
+        const ref = doc(db, "users", user.uid);
+        let existingCreatedAt = null;
+        try {
+          const snap = await getDoc(ref);
+          if (snap.exists()) {
+            existingCreatedAt = snap.data()?.createdAt || null;
+          }
+        } catch (readErr) {
+          console.warn("[Login] Could not read user doc before upsert:", readErr?.message || readErr);
+        }
+
+        const profile = {
+          uid: user.uid,
+          email: user.email || "",
+          name: user.displayName || "",
+          company: "",
+          employeeId: "",
+          timezone: getTimezone(),
+          updatedAt: serverTimestamp()
+        };
+        if (!existingCreatedAt) {
+          profile.createdAt = serverTimestamp();
+        }
+
+        await setDoc(ref, profile, { merge: true });
+      } catch (err) {
+        console.warn("[Login] upsert user profile failed:", err);
+      }
+    }
+
+    function setMessage(text, type = "") {
+      msg.textContent = text;
+      msg.className = `msg ${type}`;
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const email = form.email.value.trim();
+      const password = form.password.value;
+      setMessage("Checking credentials...");
+      try {
+        const cred = await signInWithEmailAndPassword(auth, email, password);
+        await upsertUserProfile(cred.user);
+        setMessage("Welcome back 👋", "success");
+        window.location.replace("/auth/hub.html");
+      } catch (error) {
+        console.error("[Login] Error", error);
+        setMessage(error.message || "Unable to sign in", "error");
+      }
+    });
+
+    googleBtn.addEventListener("click", async () => {
+      setMessage("Opening Google sign-in...");
+      try {
+        const cred = await signInWithPopup(auth, googleProvider);
+        await upsertUserProfile(cred.user);
+        setMessage("Signed in with Google 🎉", "success");
+        window.location.replace("/auth/hub.html");
+      } catch (error) {
+        console.error("[Login] Google error", error);
+        setMessage(error.message || "Google sign-in failed", "error");
+      }
+    });
+  </script>
+</body>
+</html>
+

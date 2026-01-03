@@ -1,0 +1,35 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Allow access only when the authenticated user owns the timesheet data.
+    function isTimesheetOwner() {
+      return isSignedIn() && (
+        (resource.data.userId == request.auth.uid) ||
+        (request.resource.data.userId == request.auth.uid)
+      );
+    }
+
+    // Enforce doc ID pattern: {userId}_{year}_{monthIndex}
+    function timesheetDocIdValid(docId) {
+      // monthIndex 0-11, year 4 digits
+      return docId.matches('^[A-Za-z0-9:_-]+_[0-9]{4}_(0|1|2|3|4|5|6|7|8|9|10|11)$');
+    }
+
+    match /timesheets/{docId} {
+      allow read: if isTimesheetOwner();
+      allow create, update, delete: if isTimesheetOwner()
+        && timesheetDocIdValid(docId);
+    }
+
+    // Users manage only their own profile document.
+    match /users/{userId} {
+      allow read, create, update, delete: if isSignedIn() && request.auth.uid == userId;
+    }
+  }
+}
+

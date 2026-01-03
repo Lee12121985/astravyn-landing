@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Astravyn | AI Studio</title>
+  <script type="module" src="/auth/firebase-config.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+    }
+    .app-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 18px;
+      background: #111827;
+      border-bottom: 1px solid #1f2937;
+    }
+    .app-title { font-weight: 700; letter-spacing: 0.3px; }
+    .header-right { display: flex; gap: 12px; align-items: center; }
+    .nav-link {
+      color: #93c5fd;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .user-email { color: #cbd5e1; font-size: 14px; }
+    .btn-logout {
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid #1f2937;
+      background: #ef4444;
+      color: #0f172a;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .btn-logout:hover { background: #dc2626; }
+    #app {
+      max-width: 800px;
+      margin: 32px auto;
+      padding: 0 16px 32px;
+    }
+    .banner-warning {
+      background: #f59e0b;
+      color: #0f172a;
+      padding: 14px;
+      border-radius: 10px;
+      font-weight: 700;
+      text-align: center;
+    }
+    body.auth-loading #app { display: none; }
+  </style>
+</head>
+<body class="auth-loading">
+  <div id="app">
+    <header class="app-header">
+      <div class="header-left">
+        <span class="app-title">Astravyn – AI Studio</span>
+      </div>
+      <div class="header-right">
+        <a class="nav-link" href="/auth/hub.html">Home</a>
+        <span id="userEmail" class="user-email">Loading...</span>
+        <button id="logoutBtn" class="btn-logout">Logout</button>
+      </div>
+    </header>
+
+    <main>
+      <div class="banner-warning">
+        🚧 This app is under construction. Features coming soon.
+      </div>
+    </main>
+  </div>
+
+  <script type="module">
+    import { requireAuth } from "../shared/auth-guard.js";
+    import { signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+
+    const auth = window.firebase?.auth;
+    if (!auth) {
+      throw new Error("Auth not initialized");
+    }
+
+    requireAuth((user) => {
+      const emailEl = document.getElementById("userEmail");
+      const logoutBtn = document.getElementById("logoutBtn");
+
+      if (emailEl) {
+        emailEl.textContent = user.email || "Logged in user";
+      }
+
+      if (logoutBtn) {
+        logoutBtn.onclick = async () => {
+          await signOut(auth);
+          // Redirect handled by auth guard
+        };
+      }
+    });
+  </script>
+</body>
+</html>
+

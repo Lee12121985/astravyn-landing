@@ -1,0 +1,3423 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Attendance Details — Timesheet</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- SheetJS (needed for Excel export) -->
+  <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+  <!-- xlsx-populate (needed for template-based export with styles) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx-populate/browser/xlsx-populate.min.js"></script>
+  <!-- Firebase -->
+  <script type="module" defer>
+    import { auth, db } from './js/firebase-config.js';
+    import { collection, doc, getDoc, getDocs, query, where, orderBy, limit, addDoc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
+    import { initCrossDomainAuth, onAuthStateChange, getCurrentUser, signOut as crossDomainSignOut } from './js/cross-domain-auth.js';
+    
+    // Initialize cross-domain auth synchronization
+    initCrossDomainAuth();
+
+    // Safe wrapper for backward compatibility
+    const onAuthStateChangedSafe = (authInstance, cb) => {
+      // Use cross-domain auth manager instead
+      return onAuthStateChange((user) => {
+        // Convert stored auth state to Firebase-like user object if needed
+        if (user && typeof user.uid === 'string') {
+          // Check if it's a Firebase User object (has methods) or stored state (plain object)
+          if (typeof user.getIdToken === 'function') {
+            // It's a Firebase User object
+            cb(user);
+          } else {
+            // It's a stored auth state, create a compatible object
+            cb({
+              uid: user.uid,
+              email: user.email,
+              displayName: user.displayName,
+              photoURL: user.photoURL
+            });
+          }
+        } else {
+          cb(null);
+        }
+      });
+    };
+
+    // Make Firebase available globally
+    window.firebaseAuth = auth;
+    window.firebaseDb = db;
+    window.firebase = {
+      auth,
+      firestore: db,
+      firestoreFunctions: { collection, doc, getDoc, getDocs, query, where, orderBy, limit, addDoc, setDoc, serverTimestamp }
+    };
+
+    // Helper to use Firestore properly
+    window.getFirestoreCollection = (collectionName) => {
+      return collection(db, collectionName);
+    };
+
+    // Helpers for auth status UI
+    function setUserStatus(user) {
+      const statusEl = document.getElementById('userStatus');
+      if (!statusEl) return;
+      const isLoggedIn = !!user;
+      const dotColor = isLoggedIn ? '#10b981' : '#f59e0b';
+      
+      if (isLoggedIn) {
+        const name = user.displayName || (user.email ? user.email.split('@')[0] : 'User');
+        const photoURL = user.photoURL;
+        const initial = name.charAt(0).toUpperCase();
+        const email = user.email || '';
+        
+        statusEl.innerHTML = `
+          <span class="status-dot" style="background:${dotColor}"></span>
+          ${photoURL 
+            ? `<img src="${photoURL}" alt="avatar" style="width:24px;height:24px;border-radius:50%;object-fit:cover;margin-right:4px;" />`
+            : `<div style="width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#06b6d4);display:inline-flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:11px;margin-right:4px;">${initial}</div>`
+          }
+          <span class="status-text">${name}</span>
+          <span style="color:rgba(15,23,36,0.6);font-size:12px;margin-left:4px;">(${email})</span>
+          <button id="logoutBtn" class="logout-btn" title="Sign out" style="margin-left:8px;padding:4px 10px;background:#ef4444;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:500;transition:background 0.2s;">
+            Logout
+          </button>
+        `;
+
+        // Attach logout function to the button
+        const logoutBtn = document.getElementById('logoutBtn');
+        if (logoutBtn) {
+          logoutBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            try {
+              await crossDomainSignOut();
+              // Status will update automatically via onAuthStateChange
+            } catch (err) {
+              console.error('Logout error:', err);
+              if (typeof showToast === 'function') {
+                showToast('Failed to sign out: ' + err.message, 'error');
+              }
+            }
+          });
+        }
+      } else {
+        statusEl.innerHTML = `<span class="status-dot" style="background:${dotColor}"></span><span class="status-text">Not logged in</span>`;
+      }
+    }
+
+    // Load timesheet on auth state change
+    onAuthStateChangedSafe(auth, async (user) => {
+      setUserStatus(user);
+
+      // Clear saved timesheets data when user logs out
+      if (!user) {
+        // Redirect to home page if not authenticated
+        document.body.innerHTML = `
+          <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:radial-gradient(circle at top, #1a2950 0, #020615 55%, #000 100%);color:#fff;font-family:system-ui,sans-serif;">
+            <div style="text-align:center;padding:40px;">
+              <div style="font-size:48px;margin-bottom:20px;">🔒</div>
+              <h2 style="margin-bottom:12px;">Sign In Required</h2>
+              <p style="color:#94a3b8;margin-bottom:24px;">Please sign in to access the Timesheet.</p>
+              <p style="color:#64748b;font-size:14px;">Redirecting to home page...</p>
+            </div>
+          </div>
+        `;
+        
+        setTimeout(() => {
+          // Detect localhost and use local URLs
+          const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+          const homePage = isLocalhost 
+            ? `http://${window.location.hostname}:${window.location.port || '3000'}/index.html`
+            : 'https://astravyn-landing.web.app';
+          window.location.href = homePage;
+        }, 1500);
+        return;
+      }
+
+      // Use userObj for the rest of the function
+      const actualUser = userObj;
+      const userId = actualUser.uid || actualUser.uid;
+      const userEmail = actualUser.email || actualUser.email;
+
+      // Clear and reload saved timesheets for the new user (after a short delay to ensure function is available)
+      setTimeout(() => {
+        if (typeof loadSavedTimesheetsCount === 'function' && userId) {
+          loadSavedTimesheetsCount(userId);
+        }
+      }, 100);
+
+      // Wait for state to be initialized
+      setTimeout(async () => {
+        const state = window.__timesheetState;
+        if (!state) return;
+
+        if (!actualUser || !userId) {
+          console.warn('No authenticated user, skipping timesheet load');
+          return;
+        }
+        
+        // Use actualUser and userId variables for the rest of the function
+        const user = actualUser;
+
+        try {
+          const { doc, getDoc } = window.firebase.firestoreFunctions;
+
+          // Use employeeId + year + month as document ID (same as save function)
+          const empId = state.empId || 'UNKNOWN';
+          if (empId === 'UNKNOWN') {
+            console.warn('Employee ID not set, skipping timesheet load');
+            return;
+          }
+
+          const docId = `${empId}_${state.year}_${state.monthIndex}`;
+          const ref = doc(db, 'timesheets', docId);
+          const snap = await getDoc(ref);
+
+          if (snap.exists()) {
+            const data = snap.data();
+            if (data.statusMap && typeof data.statusMap === 'object') {
+              // Load the statusMap from database
+              state.statusMap = { ...data.statusMap };
+
+              // Also update employee info if available in the document
+              if (data.employeeName && !state.name) state.name = data.employeeName;
+              if (data.company && !state.company) state.company = data.company;
+              if (data.employeeId && !state.empId) state.empId = data.employeeId;
+
+              // Update form fields if they exist
+              const inputName = document.getElementById('inputName');
+              const inputCompany = document.getElementById('inputCompany');
+              const inputEmpId = document.getElementById('inputEmpId');
+              if (inputName && data.employeeName) inputName.value = data.employeeName;
+              if (inputCompany && data.company) inputCompany.value = data.company;
+              if (inputEmpId && data.employeeId) inputEmpId.value = data.employeeId;
+
+              console.log(`Timesheet loaded: ${docId} for user ${userEmail || userId}`);
+
+              // Re-render calendar if renderCalendar is available
+              if (window.__renderCalendar) {
+                window.__renderCalendar();
+              }
+
+              // Update summary
+              if (window.__updateSummaryAndReport) {
+                window.__updateSummaryAndReport();
+              }
+            }
+          } else {
+            console.log(`No timesheet found for ${docId}, starting with empty timesheet`);
+          }
+        } catch (err) {
+          // Log permission errors but don't block UI
+          if (err && err.code === 'permission-denied') {
+            console.error('Permission denied loading timesheet:', {
+              user: user ? { uid: user.uid, email: user.email } : 'No user',
+              error: err.message,
+              code: err.code
+            });
+            // Show a subtle notification that data couldn't be loaded
+            if (window.showToast) {
+              window.showToast('Could not load saved timesheet. You may need to save it first.', 'warning');
+            }
+          } else {
+            console.error('Error loading timesheet on auth:', err);
+          }
+        }
+      }, 500);
+    });
+
+    // Initialize status once on load
+    setUserStatus(auth.currentUser || null);
+
+    console.log('Firebase initialized');
+  </script>
+
+  <script>
+    // Toast notification system
+    function showToast(message, type = 'info', duration = 3000) {
+      const container = document.getElementById('toastContainer');
+      if (!container) {
+        // Fallback to alert if container doesn't exist
+        alert(message);
+        return;
+      }
+
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+
+      const icons = {
+        success: '✅',
+        error: '❌',
+        info: 'ℹ️',
+        warning: '⚠️'
+      };
+
+      toast.innerHTML = `
+        <span class="toast-icon">${icons[type] || icons.info}</span>
+        <span class="toast-content">${message}</span>
+        <button class="toast-close" onclick="this.parentElement.remove()">×</button>
+      `;
+
+      container.appendChild(toast);
+
+      // Auto remove after duration
+      if (duration > 0) {
+        setTimeout(() => {
+          toast.classList.add('hiding');
+          setTimeout(() => {
+            if (toast.parentElement) {
+              toast.remove();
+            }
+          }, 300);
+        }, duration);
+      }
+
+      return toast;
+    }
+
+    // Make toast function globally available
+    window.showToast = showToast;
+  </script>
+
+  <style>
+    :root {
+      --bg: #f5f7fa;
+      --card: #fff;
+      --muted: #6b7280;
+      --neon-cyan: #06b6d4;
+      --neon-green: #10B981;
+      --neon-orange: #F59E0B;
+      --radius: 12px;
+      font-family: "Inter", system-ui, Roboto, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: #111827;
+      font-family: Inter, system-ui, Roboto, sans-serif
+    }
+
+    .container {
+      max-width: 1180px;
+      margin: 28px auto;
+      padding: 18px
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: 0 12px 36px rgba(11, 15, 25, .06);
+      padding: 18px
+    }
+
+    .layout {
+      display: flex;
+      gap: 18px;
+      align-items: flex-start
+    }
+
+    .left {
+      flex: 1
+    }
+
+    .right {
+      width: 360px
+    }
+
+    .calendar {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 14px;
+      padding: 8px
+    }
+
+    .day {
+      position: relative;
+      min-height: 86px;
+      border-radius: 10px;
+      border: 1px solid #eef2f6;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #fff;
+      cursor: pointer
+    }
+
+    .day.hidden {
+      visibility: hidden;
+      pointer-events: none;
+      background: transparent;
+      border: none
+    }
+
+    .num {
+      position: absolute;
+      top: 8px;
+      left: 10px;
+      font-weight: 600;
+      font-size: 13px;
+      color: #374151
+    }
+
+    .pill {
+      padding: 8px 12px;
+      border-radius: 28px;
+      font-weight: 700;
+      font-size: 13px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 36px;
+      min-height: 36px
+    }
+
+    .pill.P {
+      background: var(--neon-green);
+      color: #042812
+    }
+
+    .pill.C {
+      background: #3b82f6;
+      color: #fff
+    }
+
+    .pill.L {
+      background: var(--neon-orange);
+      color: #2f1600
+    }
+
+    .pill.H,
+    .pill.ST,
+    .pill.SU {
+      background: #9ca3af;
+      color: #fff
+    }
+
+    .weekday-row {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 8px;
+      margin-bottom: 12px
+    }
+
+    .weekday {
+      font-size: 13px;
+      color: var(--muted);
+      text-align: center;
+      font-weight: 700
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      border-radius: 8px;
+      overflow: hidden
+    }
+
+    th,
+    td {
+      border: 1px solid #eff3f6;
+      padding: 8px;
+      text-align: center;
+      font-size: 13px;
+      background: #fff
+    }
+
+    th {
+      background: #fbfbfc;
+      font-weight: 700
+    }
+
+    .legend {
+      display: flex;
+      gap: 18px;
+      align-items: center;
+      margin-top: 18px
+    }
+
+    .small {
+      font-size: 13px;
+      color: var(--muted)
+    }
+
+    .top-toolbar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: flex-end
+    }
+
+    .btn-3d {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 18px;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 13px
+    }
+
+    .btn-accent {
+      background: linear-gradient(180deg, #06b6d4, #0596ab);
+      color: #fff;
+      box-shadow: 0 6px 18px rgba(6, 182, 212, .14)
+    }
+
+    .btn-flat {
+      background: #fff;
+      color: #0f1724;
+      border: 1px solid #e6edf2;
+      padding: 10px 14px
+    }
+
+    .btn-control {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: none;
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .btn-weekends {
+      background: linear-gradient(180deg, #10b981, #059669);
+      color: #fff
+    }
+
+    /* Better spacing for month/year controls */
+    .month-nav {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .month-nav label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin: 0;
+      white-space: nowrap;
+    }
+
+    .month-nav label span {
+      min-width: 50px;
+    }
+
+    .btn-clear {
+      background: linear-gradient(180deg, #fbbf24, #f59e0b);
+      color: #fff
+    }
+
+    .template-select {
+      padding: .5rem .9rem;
+      border-radius: 9999px;
+      border: 1px solid var(--neon-cyan);
+      background: rgba(5, 11, 20, .03);
+      color: var(--neon-cyan);
+      font-size: 13px
+    }
+
+    .btn-upload {
+      background: transparent;
+      border: 1px dashed var(--neon-cyan);
+      color: var(--neon-cyan);
+      padding: .55rem 1rem;
+      border-radius: 9999px;
+      cursor: pointer;
+      font-size: 13px;
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+      font-weight: 700;
+      text-transform: uppercase
+    }
+
+    /* Toggle active state for weekend color button */
+    .btn-control.active {
+      box-shadow: 0 6px 18px rgba(6, 182, 212, 0.12);
+      border: 1px solid rgba(6, 182, 212, 0.12);
+    }
+
+    .btn-upload input {
+      display: none
+    }
+
+    .status-cell {
+      font-weight: 700;
+      border-left: 4px solid transparent
+    }
+
+    .status-cell.P {
+      background: linear-gradient(180deg, rgba(52, 199, 89, 0.18), rgba(52, 199, 89, 0.06));
+      color: #024d1a;
+      border-left-color: #28a745
+    }
+
+    .status-cell.C {
+      background: linear-gradient(180deg, rgba(59, 130, 246, 0.18), rgba(59, 130, 246, 0.06));
+      color: #06326f;
+      border-left-color: #3b82f6
+    }
+
+    .status-cell.L {
+      background: linear-gradient(180deg, rgba(245, 158, 11, 0.18), rgba(245, 158, 11, 0.06));
+      color: #5c3a00;
+      border-left-color: #f59e0b
+    }
+
+    .status-cell.H,
+    .status-cell.ST,
+    .status-cell.SU {
+      background: linear-gradient(180deg, rgba(156, 163, 175, 0.18), rgba(156, 163, 175, 0.06));
+      color: #1e1e1e;
+      border-left-color: #9ca3af
+    }
+
+    .icon-btn {
+      width: 36px;
+      height: 36px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      border: 1px solid #e6edf2;
+      background: #fff;
+      cursor: pointer
+    }
+
+    @media (max-width:900px) {
+      .layout {
+        flex-direction: column
+      }
+
+      .right {
+        width: 100%
+      }
+    }
+
+    /* make the calendar scroll nicely when it grows */
+    #calendar {
+      min-height: 260px
+    }
+
+    /* Toast notification styles */
+    .toast-container {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 10000;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      pointer-events: none;
+    }
+
+    .toast {
+      background: #fff;
+      border-radius: 8px;
+      padding: 14px 18px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 300px;
+      max-width: 400px;
+      pointer-events: auto;
+      animation: slideInRight 0.3s ease-out;
+      border-left: 4px solid #3b82f6;
+    }
+
+    .toast.success {
+      border-left-color: #10b981;
+    }
+
+    .toast.error {
+      border-left-color: #ef4444;
+    }
+
+    .toast.info {
+      border-left-color: #3b82f6;
+    }
+
+    .toast.warning {
+      border-left-color: #f59e0b;
+    }
+
+    .toast-icon {
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+
+    .toast-content {
+      flex: 1;
+      font-size: 14px;
+      color: #111827;
+      line-height: 1.4;
+    }
+
+    .toast-close {
+      background: none;
+      border: none;
+      font-size: 18px;
+      color: #6b7280;
+      cursor: pointer;
+      padding: 0;
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .toast-close:hover {
+      color: #111827;
+    }
+
+    @keyframes slideInRight {
+      from {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+
+    @keyframes slideOutRight {
+      from {
+        transform: translateX(0);
+        opacity: 1;
+      }
+
+      to {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+    }
+
+    .toast.hiding {
+      animation: slideOutRight 0.3s ease-out forwards;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Toast notification container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <div class="container">
+    <div class="card">
+      <div
+        style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:12px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <button id="btnBack" class="btn-back" title="Go back"
+            style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#fff;color:#374151;border:1px solid #d1d5db;border-radius:8px;cursor:pointer;font-size:14px;font-weight:500;transition:all 0.2s;">
+            <span style="font-size:16px">←</span> Back
+          </button>
+          <h2 style="margin:0;font-size:20px">Attendance Details — <span id="headingMonth">October 2025</span></h2>
+        </div>
+        <div id="userStatus"
+          style="font-size:13px;color:#0f1724;background:#f3f4f6;padding:8px 12px;border-radius:10px;display:flex;align-items:center;gap:8px">
+          <span class="status-dot" style="background:#d1d5db"></span>
+          <span class="status-text">Checking login…</span>
+        </div>
+        <div class="top-toolbar" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <select id="templateSelect"
+            style="padding:8px 12px;border-radius:8px;border:1px solid #d1d5db;background:#fff;font-size:14px;cursor:pointer;min-width:180px">
+            <option value="indian_skp">Indian Format (SKP)</option>
+            <option value="us_standard">US Standard</option>
+            <option value="uk_standard">UK Standard</option>
+            <option value="iso_8601">ISO 8601 Format</option>
+            <option value="european">European Format</option>
+            <option value="payroll">Payroll Format</option>
+          </select>
+          <button id="btnExportSKP" class="btn-3d btn-accent" title="Export SKP Report" style="display:none">Export SKP
+            Report</button>
+          <button id="btnExportTemplate" class="btn-3d btn-accent" title="Export with Selected Template">Export w/ Template</button>
+          <button id="btnExport" class="btn-3d" title="Export as Excel (.xlsx)">Export Excel</button>
+          <button id="btnExportCSV" class="btn-3d btn-flat" title="Export as CSV (.csv)">Export CSV</button>
+          <button id="btnSaveTimesheetTop" class="btn-3d btn-accent" title="Save current timesheet">Save
+            Timesheet</button>
+          <button id="btnSendTop" class="btn-3d btn-accent" title="Open send dialog">Send</button>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;align-items:flex-start">
+        <label style="min-width:220px">Company Name
+          <input id="inputCompany" value="NovaEdge Technologies"
+            style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #d1d5db">
+        </label>
+        <label style="min-width:220px">Employee Name
+          <input id="inputName" value="Aarav Kiran"
+            style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #d1d5db">
+        </label>
+        <label style="min-width:160px">Employee ID
+          <input id="inputEmpId" value="NE-2047"
+            style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #d1d5db">
+        </label>
+
+        <div class="controls-inline" style="margin-right:auto;justify-content:flex-start;flex:1;align-items:center">
+          <div class="month-nav" style="display:flex;align-items:center;gap:8px">
+            <button id="btnPrevMonth" class="icon-btn" title="Previous month" aria-label="Previous month">◀</button>
+            <label style="margin:0;font-weight:600;display:flex;align-items:center;gap:6px;min-width:80px">
+              <span style="white-space:nowrap">Month</span>
+              <select id="selectMonth" style="padding:8px;border-radius:8px;flex:1;min-width:120px"></select>
+            </label>
+            <label style="margin:0;font-weight:600;display:flex;align-items:center;gap:6px;min-width:80px">
+              <span style="white-space:nowrap">Year</span>
+              <select id="selectYear" style="padding:8px;border-radius:8px;flex:1;min-width:120px"></select>
+            </label>
+            <button id="btnNextMonth" class="icon-btn" title="Next month" aria-label="Next month">▶</button>
+          </div>
+
+          <button id="btnMarkWeekends" class="btn-control btn-weekends"
+            style="min-width:150px;justify-content:center">Working Days</button>
+          <button id="btnToggleWeekendColor" class="btn-control" title="Mark all weekends"
+            style="min-width:150px;justify-content:center">Mark Weekend</button>
+          <button id="btnClearMonth" class="btn-control btn-clear" style="min-width:150px;justify-content:center">Clear
+            Month</button>
+        </div>
+      </div>
+
+      <div class="layout">
+        <div class="left card" style="padding:18px">
+          <div class="small" style="margin-bottom:8px">Click a date to cycle status: <strong>Empty → P → C → L → H
+              →</strong></div>
+          <div class="weekday-row" aria-hidden="true">
+            <div class="weekday">Mon</div>
+            <div class="weekday">Tue</div>
+            <div class="weekday">Wed</div>
+            <div class="weekday">Thu</div>
+            <div class="weekday">Fri</div>
+            <div class="weekday">Sat</div>
+            <div class="weekday">Sun</div>
+          </div>
+
+          <div style="max-height:560px;overflow:auto;padding:6px">
+            <div id="calendar" class="calendar" role="grid" aria-label="Calendar"></div>
+          </div>
+
+          <div class="legend">
+            <div class="item"><span class="pill P">P</span><span class="small" style="margin-left:8px">Present</span>
+            </div>
+            <div class="item"><span class="pill C">C</span><span class="small" style="margin-left:8px">Comp-off</span>
+            </div>
+            <div class="item"><span class="pill L">L</span><span class="small" style="margin-left:8px">Leave</span>
+            </div>
+            <div class="item"><span class="pill H">H</span><span class="small" style="margin-left:8px">Holiday</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="right">
+          <div class="card">
+            <div style="font-weight:700;margin-bottom:8px">Summary</div>
+            <div style="font-size:14px;line-height:1.6">
+              <div style="display:flex;justify-content:space-between">
+                <div>Company</div>
+                <div id="summaryCompany">NovaEdge Technologies</div>
+              </div>
+              <div style="display:flex;justify-content:space-between">
+                <div>Employee</div>
+                <div id="summaryName">Aarav Kiran</div>
+              </div>
+              <div style="display:flex;justify-content:space-between">
+                <div>Employee ID</div>
+                <div id="summaryEmpId">NE-2047</div>
+              </div>
+              <div style="display:flex;justify-content:space-between">
+                <div>Month</div>
+                <div id="summaryMonth">October 2025</div>
+              </div>
+              <div style="display:flex;justify-content:space-between">
+                <div>Total Present</div>
+                <div id="summaryPresent">0</div>
+              </div>
+              <div style="display:flex;justify-content:space-between">
+                <div>Total Leave</div>
+                <div id="summaryLeave">0</div>
+              </div>
+              <div style="display:flex;justify-content:space-between">
+                <div>Total Comp-off</div>
+                <div id="summaryComp">0</div>
+              </div>
+              <div style="display:flex;justify-content:space-between">
+                <div>Total Holiday</div>
+                <div id="summaryHoliday">0</div>
+              </div>
+              <div style="display:flex;justify-content:space-between">
+                <div>Attendance %</div>
+                <div id="summaryPercent">0%</div>
+              </div>
+              <div style="display:flex;justify-content:space-between">
+                <div>Comp-off of Holiday</div>
+                <div id="summaryCompOfHoliday">0 / 0 (0.0%)</div>
+              </div>
+            </div>
+
+            <div style="margin-top:12px">
+              <div style="font-weight:600;margin-bottom:8px">Report Preview</div>
+              <div style="max-height:360px;overflow:auto">
+                <table id="reportTable">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="reportBody"></tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ---------- CLIENT APP JS (self-contained) ---------- */
+    (function () {
+      function initTimesheet() {
+        const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+        // Calculate days in month - automatically handles leap years correctly
+        // Using Date constructor with day 0 of next month returns last day of current month
+        function daysInMonth(y, m) {
+          // Validate inputs
+          if (m < 0 || m > 11) {
+            console.error(`Invalid month index in daysInMonth: ${m}`);
+            return 0;
+          }
+          if (y < 1900 || y > 2100) {
+            console.warn(`Unusual year in daysInMonth: ${y}`);
+          }
+          
+          const days = new Date(y, m + 1, 0).getDate();
+          
+          // Validate result is reasonable
+          if (days < 28 || days > 31) {
+            console.warn(`Unexpected day count from daysInMonth(${y}, ${m}): ${days}`);
+          }
+          
+          // Verify leap year handling for February
+          if (m === 1) { // February
+            const isLeapYear = (y % 4 === 0 && y % 100 !== 0) || (y % 400 === 0);
+            const expectedDays = isLeapYear ? 29 : 28;
+            if (days !== expectedDays) {
+              console.error(`Leap year calculation mismatch for February ${y}: expected ${expectedDays}, got ${days}`);
+            }
+          }
+          
+          return days;
+        }
+        function isoDate(y, m, d) { return `${String(y).padStart(4, '0')}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`; }
+        function formatMDY(y, m, d) { return `${m + 1}/${d}/${y}`; }
+        function formatDayName(y, m, d) { return new Date(y, m, d).toLocaleDateString(undefined, { weekday: 'short' }); }
+        function docId(uid, year, month) { return `${uid}_${year}_${month}`; }
+
+        const state = { year: new Date().getFullYear(), monthIndex: new Date().getMonth(), company: 'NovaEdge Technologies', name: 'Aarav Kiran', empId: 'NE-2047', statusMap: {}, showWeekendColors: false };
+
+        const id = (s) => document.getElementById(s);
+        const selectMonth = id('selectMonth'), selectYear = id('selectYear'), headingMonth = id('headingMonth'), calendarEl = id('calendar');
+        
+        // Validate critical elements exist
+        if (!calendarEl) {
+          console.error('Calendar element #calendar not found in DOM');
+          setTimeout(initTimesheet, 100); // Retry after 100ms
+          return;
+        }
+        if (!headingMonth) {
+          console.error('Heading element #headingMonth not found in DOM');
+          setTimeout(initTimesheet, 100);
+          return;
+        }
+        
+      const inputName = id('inputName'), inputCompany = id('inputCompany'), inputEmpId = id('inputEmpId');
+      const summaryCompany = id('summaryCompany'), summaryName = id('summaryName'), summaryEmpId = id('summaryEmpId'), summaryMonth = id('summaryMonth');
+      const summaryPresent = id('summaryPresent'), summaryLeave = id('summaryLeave'), summaryComp = id('summaryComp'), summaryHoliday = id('summaryHoliday');
+      const summaryPercent = id('summaryPercent'), summaryCompOfHoliday = id('summaryCompOfHoliday'), reportBody = id('reportBody');
+      const btnExportSKP = id('btnExportSKP'), btnExport = id('btnExport'), btnExportCSV = id('btnExportCSV'), btnMarkWeekends = id('btnMarkWeekends'), btnClearMonth = id('btnClearMonth'), btnSendTop = id('btnSendTop');
+      const btnPrevMonth = id('btnPrevMonth'), btnNextMonth = id('btnNextMonth'), btnToggleWeekendColor = id('btnToggleWeekendColor');
+      
+      // Validate summary elements exist (warn but don't block)
+      if (!reportBody) {
+        console.warn('Report body element not found');
+      }
+      if (!summaryPresent || !summaryLeave || !summaryComp || !summaryHoliday) {
+        console.warn('Some summary elements are missing');
+      }
+
+      if (selectMonth) { selectMonth.innerHTML = monthNames.map((m, i) => `<option value="${i}">${m}</option>`).join(''); selectMonth.value = state.monthIndex; }
+      if (selectYear) { const cur = new Date().getFullYear(); selectYear.innerHTML = Array.from({ length: 12 }, (_, i) => cur - 6 + i).map(y => `<option value="${y}">${y}</option>`).join(''); selectYear.value = state.year; }
+
+      function renderHeading() {
+        if (headingMonth) headingMonth.textContent = `${monthNames[state.monthIndex]} ${state.year}`;
+        if (summaryCompany) summaryCompany.textContent = state.company;
+        if (summaryName) summaryName.textContent = state.name;
+        if (summaryEmpId) summaryEmpId.textContent = state.empId;
+        if (summaryMonth) summaryMonth.textContent = `${monthNames[state.monthIndex]} ${state.year}`;
+      }
+
+      const CYCLE = ['', 'P', 'C', 'L', 'H'];
+      function updatePill(w, s) { w.innerHTML = ''; if (!s) return; const sp = document.createElement('span'); sp.className = 'pill ' + s; sp.textContent = s; w.appendChild(sp); }
+
+      function createDayCell(y, m, d) {
+        const iso = isoDate(y, m, d);
+        const cell = document.createElement('div'); cell.className = 'day'; cell.tabIndex = 0; cell.setAttribute('role', 'gridcell'); cell.dataset.date = iso;
+        cell.setAttribute('aria-label', `${monthNames[m]} ${d}, ${y}`);
+        const dow = new Date(y, m, d).getDay();
+        if (dow === 6) cell.classList.add('saturday'); else if (dow === 0) cell.classList.add('sunday'); else cell.classList.add('workday');
+        if (state.showWeekendColors) { if (dow === 6 || dow === 0) cell.style.background = 'linear-gradient(180deg, rgba(16,185,129,0.08), #fff)'; }
+        const num = document.createElement('div'); num.className = 'num'; num.textContent = d; cell.appendChild(num);
+        const pillWrap = document.createElement('div'); pillWrap.className = 'pillWrap'; updatePill(pillWrap, state.statusMap[iso] || ''); cell.appendChild(pillWrap);
+
+        cell.addEventListener('click', () => {
+          const cur = state.statusMap[iso] || ''; const normCur = (cur === 'ST' || cur === 'SU') ? 'H' : cur;
+          let idx = CYCLE.indexOf(normCur); if (idx === -1) idx = 0; idx = (idx + 1) % CYCLE.length; let next = CYCLE[idx];
+          if (next === 'H') { if (dow === 6) next = 'ST'; else if (dow === 0) next = 'SU'; }
+          if (next === '') delete state.statusMap[iso]; else state.statusMap[iso] = next;
+          updatePill(pillWrap, state.statusMap[iso] || ''); cell.setAttribute('aria-current-status', next || 'Empty'); updateSummaryAndReport();
+        });
+        cell.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cell.click(); } });
+        return cell;
+      }
+
+      function renderCalendar() {
+        if (!calendarEl) {
+          console.error('Cannot render calendar: calendar element not found');
+          return;
+        }
+        
+        // Get current month/year and calculate total days
+        const y = state.year;
+        const m = state.monthIndex;
+        const total = daysInMonth(y, m);
+        
+        // Validate: Ensure we only process days 1 to total for this month
+        // Validate month index is valid
+        if (m < 0 || m > 11) {
+          console.error(`Invalid month index: ${m}`);
+          return;
+        }
+        
+        // Validate year is reasonable
+        if (y < 1900 || y > 2100) {
+          console.warn(`Unusual year value: ${y}`);
+        }
+        
+        // Validate day count is within expected range
+        if (total < 28 || total > 31) {
+          console.warn(`Invalid day count for ${monthNames[m]} ${y}: ${total}`);
+        }
+        
+        // Log calendar update for debugging
+        console.log(`Rendering calendar for ${monthNames[m]} ${y} with ${total} days`);
+        
+        // Completely clear calendar before rendering - ensure no leftover days
+        calendarEl.innerHTML = '';
+        
+        // Verify calendar is empty after clearing
+        if (calendarEl.children.length > 0) {
+          console.warn('Calendar not fully cleared, forcing complete clear');
+          while (calendarEl.firstChild) {
+            calendarEl.removeChild(calendarEl.firstChild);
+          }
+        }
+        
+        // Calculate first day of week offset (Monday = 0)
+        const firstDow = new Date(y, m, 1).getDay();
+        const offset = (firstDow + 6) % 7;
+        
+        // Validate offset is reasonable
+        if (offset < 0 || offset > 6) {
+          console.warn(`Invalid week offset: ${offset} for ${monthNames[m]} ${y}`);
+        }
+        
+        // Add blank cells for week offset
+        for (let i = 0; i < offset; i++) {
+          const blank = document.createElement('div');
+          blank.className = 'day hidden';
+          calendarEl.appendChild(blank);
+        }
+        
+        // Render only valid days for this month (1 to total)
+        // Explicit validation: ensure we never render days beyond the month's actual days
+        const daysRendered = [];
+        for (let d = 1; d <= total; d++) {
+          // Double-check that day is valid for this month
+          const testDate = new Date(y, m, d);
+          if (testDate.getMonth() !== m || testDate.getFullYear() !== y) {
+            console.warn(`Skipping invalid day ${d} for ${monthNames[m]} ${y}`);
+            continue;
+          }
+          daysRendered.push(d);
+          calendarEl.appendChild(createDayCell(y, m, d));
+        }
+        
+        // Verify we rendered the correct number of days
+        const actualDaysRendered = daysRendered.length;
+        if (actualDaysRendered !== total) {
+          console.error(`Day count mismatch: expected ${total}, rendered ${actualDaysRendered} for ${monthNames[m]} ${y}`);
+        }
+        
+        // Synchronize all components: update summary and report table
+        updateSummaryAndReport();
+      }
+
+      function updateSummaryAndReport() {
+        // Get current month/year and calculate total days - ensure we only process valid days
+        const y = state.year;
+        const m = state.monthIndex;
+        const total = daysInMonth(y, m);
+        
+        // Validate month index and year
+        if (m < 0 || m > 11) {
+          console.error(`Invalid month index in updateSummaryAndReport: ${m}`);
+          return;
+        }
+        
+        // Validate day count
+        if (total < 28 || total > 31) {
+          console.warn(`Invalid day count in updateSummaryAndReport for ${monthNames[m]} ${y}: ${total}`);
+        }
+        
+        // Initialize counters
+        let present = 0, leave = 0, comp = 0, hol = 0;
+        
+        // Clear report table completely before updating - ensure no leftover rows
+        if (reportBody) {
+          reportBody.innerHTML = '';
+          // Verify table is empty after clearing
+          if (reportBody.children.length > 0) {
+            console.warn('Report table not fully cleared, forcing complete clear');
+            while (reportBody.firstChild) {
+              reportBody.removeChild(reportBody.firstChild);
+            }
+          }
+        }
+        
+        // Process only valid days for this month (1 to total)
+        // This ensures punching logic and color fill work correctly for the selected month
+        const daysProcessed = [];
+        for (let d = 1; d <= total; d++) {
+          // Validate that day is actually valid for this month
+          const testDate = new Date(y, m, d);
+          if (testDate.getMonth() !== m || testDate.getFullYear() !== y) {
+            console.warn(`Skipping invalid day ${d} in updateSummaryAndReport for ${monthNames[m]} ${y}`);
+            continue;
+          }
+          
+          daysProcessed.push(d);
+          const iso = isoDate(y, m, d);
+          const st = state.statusMap[iso] || '';
+          
+          // Count statuses for summary
+          if (st === 'P') present++;
+          else if (st === 'L') leave++;
+          else if (st === 'C') comp++;
+          else if (st === 'H' || st === 'ST' || st === 'SU') hol++;
+          
+          // Add row to report table
+          if (reportBody) {
+            const tr = document.createElement('tr');
+            const td1 = document.createElement('td');
+            td1.textContent = formatMDY(y, m, d);
+            
+            const td2 = document.createElement('td');
+            td2.textContent = st || '—';
+            td2.style.textAlign = 'center';
+            td2.className = 'status-cell' + (st ? (' ' + st) : '');
+            
+            tr.appendChild(td1);
+            tr.appendChild(td2);
+            reportBody.appendChild(tr);
+          }
+        }
+        
+        // Verify we processed the correct number of days
+        if (daysProcessed.length !== total) {
+          console.warn(`Day count mismatch in updateSummaryAndReport: expected ${total}, processed ${daysProcessed.length} for ${monthNames[m]} ${y}`);
+        }
+        
+        // Update summary values - synchronized with calendar and report
+        if (summaryPresent) summaryPresent.textContent = present;
+        if (summaryLeave) summaryLeave.textContent = leave;
+        if (summaryComp) summaryComp.textContent = comp;
+        if (summaryHoliday) summaryHoliday.textContent = hol;
+        
+        // Calculate percentages based on actual days in month
+        const workingDays = Math.max(0, total - hol);
+        const attendancePercent = workingDays > 0 ? (present / workingDays) * 100 : 0;
+        const compOffPercent = hol > 0 ? (comp / hol) * 100 : 0;
+        
+        if (summaryPercent) summaryPercent.textContent = `${attendancePercent.toFixed(1)}%`;
+        if (summaryCompOfHoliday) summaryCompOfHoliday.textContent = `${comp} / ${hol} (${compOffPercent.toFixed(1)}%)`;
+      }
+
+      function exportCSV() {
+        const y = state.year, m = state.monthIndex, total = daysInMonth(y, m); const rows = []; rows.push([`Company Name: ${state.company}`]); rows.push([`Employee Name: ${state.name}`]); rows.push([`Employee ID: ${state.empId}`]); rows.push([`Month: ${monthNames[m]} ${y}`]); rows.push([]); rows.push(['Date', 'Status']);
+        for (let d = 1; d <= total; d++) { const st = state.statusMap[isoDate(y, m, d)] || ''; rows.push([formatMDY(y, m, d), st]); }
+        const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+        const blob = new Blob(["\uFEFF", csv], { type: 'text/csv;charset=utf-8;' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `${state.name.replace(/\s+/g, '_')}_${monthNames[m]}_${y}.csv`; a.click(); URL.revokeObjectURL(url);
+      }
+
+      // Swallow external location.js errors so they never block export
+      window.addEventListener('error', (e) => {
+        if (e && e.filename && e.filename.includes('location.js')) {
+          e.preventDefault();
+        }
+      });
+
+      async function exportExcel(mode = 'default', templateType = null) {
+        const templateSelect = document.getElementById('templateSelect');
+        const selectedTemplate = templateType || (templateSelect ? templateSelect.value : 'indian_skp');
+
+        const btn = mode === 'skp' ? document.getElementById('btnExportSKP') :
+          (document.getElementById('btnExportTemplate') || document.getElementById('btnExport'));
+        const originalText = btn ? btn.textContent : 'Export';
+        if (btn) {
+          btn.textContent = mode === 'skp' ? 'Generating SKP...' : 'Exporting...';
+          btn.disabled = true;
+        }
+
+        try {
+          // Location disabled
+          let location = {};
+
+          // Gather data
+          const y = state.year, m = state.monthIndex, total = daysInMonth(y, m);
+          const rows = [];
+          for (let d = 1; d <= total; d++) {
+            const iso = isoDate(y, m, d);
+            const st = state.statusMap[iso] || '';
+            const dt = new Date(y, m, d);
+            const dayName = dt.toLocaleDateString('en-US', { weekday: 'short' });
+            const isSat = dt.getDay() === 6;
+            const isSun = dt.getDay() === 0;
+            let isWeekend = false;
+            if (isSat) isWeekend = 'sat';
+            if (isSun) isWeekend = 'sun';
+
+            rows.push({
+              date: formatMDY(y, m, d),
+              day: dayName,
+              status: st,
+              isWeekend: isWeekend
+            });
+          }
+
+          const payload = {
+            company: state.company,
+            employeeName: state.name,
+            employeeId: state.empId,
+            month: monthNames[m],
+            year: y,
+            summary: {
+              totalPresent: document.getElementById('summaryPresent').textContent,
+              totalLeave: document.getElementById('summaryLeave').textContent,
+              totalHoliday: document.getElementById('summaryHoliday').textContent,
+              attendancePercent: document.getElementById('summaryPercent').textContent.replace('%', '')
+            },
+            attendanceRows: rows,
+            location: location,
+            userId: (window.firebaseAuth && window.firebaseAuth.currentUser) ? window.firebaseAuth.currentUser.uid : 'guest'
+          };
+
+          const formData = new FormData();
+          for (const [key, value] of Object.entries(payload)) {
+            formData.append(key, typeof value === 'object' ? JSON.stringify(value) : value);
+          }
+
+          // For SKP mode, try xlsx-populate export first (better style preservation)
+          if (mode === 'skp' || selectedTemplate === 'indian_skp' || selectedTemplate === 'skp-default') {
+            // Check if xlsx-populate is available
+            if (typeof XlsxPopulate !== 'undefined' && typeof window.exportWithTemplateXlsxPopulate === 'function') {
+              try {
+                await window.exportWithTemplateXlsxPopulate(state, 'template/TIMESHEET_NOVEMBER-SKP.xlsx');
+                showToast('SKP report generated successfully!', 'success');
+                if (btn) {
+                  btn.textContent = originalText;
+                  btn.disabled = false;
+                }
+                return;
+              } catch (xlsxPopulateErr) {
+                console.warn('xlsx-populate export failed, trying backend:', xlsxPopulateErr);
+                // Fall through to backend/fallback
+              }
+            }
+          }
+
+          // Template type handling
+          if (mode === 'skp' || selectedTemplate === 'indian_skp') {
+            formData.append('templateId', 'skp-default');
+            formData.append('templateType', 'indian_skp');
+          } else {
+            formData.append('templateType', selectedTemplate);
+            formData.append('templateId', 'default');
+          }
+
+          // Call Backend with error handling and fallback
+          let res;
+          try {
+            res = await fetch('/api/export-template', {
+              method: 'POST',
+              body: formData
+            });
+
+            if (!res.ok) {
+              const errText = await res.text();
+              let errMessage = 'Export failed';
+              try {
+                const errJson = JSON.parse(errText);
+                errMessage = errJson.error || errMessage;
+              } catch {
+                errMessage = errText || errMessage;
+              }
+              throw new Error(errMessage);
+            }
+          } catch (e) {
+            console.warn('Backend export failed, using local fallback:', e);
+            // Fallback to client-side Excel export
+            showToast('Backend export unavailable, using local export...', 'info');
+            exportLocalExcel(state, monthNames, m, y);
+            if (btn) {
+              btn.textContent = originalText;
+              btn.disabled = false;
+            }
+            return;
+          }
+
+          // Handle Download
+          const blob = await res.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          // Use filename from header or fallback
+          const contentDisposition = res.headers.get('Content-Disposition');
+          let filename = `${state.name.replace(/\s+/g, '_')}_${monthNames[m]}_${y}.xlsx`;
+          if (contentDisposition && contentDisposition.indexOf('attachment') !== -1) {
+            const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+            const matches = filenameRegex.exec(contentDisposition);
+            if (matches != null && matches[1]) {
+              filename = matches[1].replace(/['"]/g, '');
+            }
+          }
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          window.URL.revokeObjectURL(url);
+
+        } catch (err) {
+          console.error('Export error:', err);
+          // Fallback to client-side Excel to guarantee a file
+          try {
+            showToast('Attempting local export as fallback...', 'info');
+            exportLocalExcel(state, monthNames, state.monthIndex, state.year);
+            showToast('Excel exported successfully (local fallback)', 'success');
+          } catch (fallbackErr) {
+            console.error('Local export failed:', fallbackErr);
+            showToast('Export failed: ' + (err.message || 'Unknown error') + '. Please check backend server is running.', 'error');
+          }
+        } finally {
+          if (btn) {
+            btn.textContent = originalText;
+            btn.disabled = false;
+          }
+        }
+      }
+
+      // Fallback Excel export function (client-side only)
+      function exportLocalExcel(state, monthNames, monthIndex, year) {
+        try {
+          const wb = XLSX.utils.book_new();
+          const wsData = [
+            ['Company', state.company || ''],
+            ['Employee Name', state.name || ''],
+            ['Employee ID', state.empId || ''],
+            ['Month', monthNames[monthIndex] || ''],
+            ['Year', year || ''],
+            [],
+            ['Date', 'Day', 'Status']
+          ];
+
+          const total = new Date(year, monthIndex + 1, 0).getDate();
+          for (let d = 1; d <= total; d++) {
+            const iso = `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            const dt = new Date(year, monthIndex, d);
+            const dayName = dt.toLocaleDateString('en-US', { weekday: 'short' });
+            wsData.push([
+              `${monthIndex + 1}/${d}/${year}`,
+              dayName,
+              state.statusMap[iso] || ''
+            ]);
+          }
+
+          // Add summary
+          wsData.push([]);
+          wsData.push(['Summary', '']);
+          wsData.push(['Total Present', document.getElementById('summaryPresent')?.textContent || '0']);
+          wsData.push(['Total Leave', document.getElementById('summaryLeave')?.textContent || '0']);
+          wsData.push(['Total Holiday', document.getElementById('summaryHoliday')?.textContent || '0']);
+          wsData.push(['Attendance %', document.getElementById('summaryPercent')?.textContent || '0%']);
+
+          const ws = XLSX.utils.aoa_to_sheet(wsData);
+          XLSX.utils.book_append_sheet(wb, ws, 'Timesheet');
+          const filename = `${(state.name || 'Employee').replace(/\s+/g, '_')}_${monthNames[monthIndex]}_${year}.xlsx`;
+          XLSX.writeFile(wb, filename);
+        } catch (err) {
+          console.error('Local export failed:', err);
+          showToast('Export failed. Please ensure backend server is running.', 'error');
+        }
+      }
+
+      function markWeekendsAsHoliday() {
+        const y = state.year, m = state.monthIndex, total = daysInMonth(y, m);
+        for (let d = 1; d <= total; d++) {
+          const dow = new Date(y, m, d).getDay();
+          if (dow !== 6 && dow !== 0) state.statusMap[isoDate(y, m, d)] = 'P';
+        }
+        renderCalendar();
+        showToast('Weekdays marked as present', 'success');
+      }
+      function markWeekends() {
+        const y = state.year, m = state.monthIndex, total = daysInMonth(y, m);
+        for (let d = 1; d <= total; d++) {
+          const dow = new Date(y, m, d).getDay();
+          if (dow === 6) state.statusMap[isoDate(y, m, d)] = 'ST';
+          if (dow === 0) state.statusMap[isoDate(y, m, d)] = 'SU';
+        }
+        renderCalendar();
+        showToast('Weekends marked', 'success');
+      }
+      function clearMonth() {
+        const y = state.year, m = state.monthIndex;
+        Object.keys(state.statusMap).forEach(k => {
+          const dt = new Date(k);
+          if (dt.getFullYear() === y && dt.getMonth() === m) delete state.statusMap[k];
+        });
+        renderCalendar();
+        showToast('All entries cleared for this month', 'success');
+      }
+
+      function createSendModal() {
+        if (document.getElementById('sendModal')) return document.getElementById('sendModal');
+        const modal = document.createElement('div');
+        modal.id = 'sendModal';
+        modal.style.position = 'fixed'; modal.style.inset = '0'; modal.style.display = 'flex'; modal.style.alignItems = 'center'; modal.style.justifyContent = 'center'; modal.style.zIndex = '1400'; modal.style.background = 'rgba(6,11,15,0.6)';
+
+        // Pre-filled Message Logic
+        const monthStr = monthNames[state.monthIndex] + ' ' + state.year;
+        const subjectPre = `Timesheet - ${state.name} - ${monthStr}`;
+        const bodyPre = `Hi sir,\n\nI have attached the timesheet for ${monthStr} for ${state.name}. Kindly review it for salary processing.\n\nBest regards,\n${state.name}`;
+
+        modal.innerHTML = `
+          <div style="background:#fff;border-radius:12px;padding:24px;max-width:720px;width:100%;box-shadow:0 25px 50px -12px rgba(0,0,0,0.25);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+              <div style="font-weight:700;font-size:18px;color:#111827">Send Timesheet</div>
+              <button id="sendModalClose" style="border:none;background:transparent;font-size:20px;cursor:pointer;color:#6b7280">✕</button>
+            </div>
+            
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+              <label style="font-size:13px;color:#374151;font-weight:500">To (company email)
+                <input id="modalTo" type="email" placeholder="hr@company.com" style="width:100%;margin-top:6px;padding:10px;border-radius:6px;border:1px solid #d1d5db" />
+              </label>
+              <label style="font-size:13px;color:#374151;font-weight:500">Subject
+                <input id="modalSubject" type="text" value="${subjectPre}" style="width:100%;margin-top:6px;padding:10px;border-radius:6px;border:1px solid #d1d5db" />
+              </label>
+              <label style="font-size:13px;color:#374151;font-weight:500">Sender name
+                <input id="modalSenderName" type="text" value="${state.name}" style="width:100%;margin-top:6px;padding:10px;border-radius:6px;border:1px solid #d1d5db" />
+              </label>
+              <label style="font-size:13px;color:#374151;font-weight:500">Sender email / phone
+                <input id="modalSenderEmail" type="text" placeholder="your@email.com" style="width:100%;margin-top:6px;padding:10px;border-radius:6px;border:1px solid #d1d5db" />
+              </label>
+            </div>
+            
+            <label style="font-size:13px;color:#374151;font-weight:500;display:block;margin-bottom:8px">Message (editable)</label>
+            <textarea id="modalBody" rows="7" style="width:100%;padding:12px;border-radius:8px;border:1px solid #d1d5db;resize:vertical;font-family:inherit;margin-bottom:24px">${bodyPre}</textarea>
+            
+            <div style="display:flex;gap:12px;justify-content:flex-end;flex-wrap:wrap">
+              <button id="modalDownloadOnly" class="btn-3d btn-flat" style="border:1px solid #e5e7eb">Download Only</button>
+              <button id="modalGmail" class="btn-3d btn-accent" style="background:#0F9D58;color:#fff">Download & Gmail</button>
+              <button id="modalOutlook" class="btn-3d btn-accent" style="background:#0078D4;color:#fff">Download & Outlook</button>
+              <button id="modalMailApp" class="btn-3d btn-accent" style="background:#F59E0B;color:#fff">Download & Mail App</button>
+            </div>
+          </div>`;
+
+        document.body.appendChild(modal);
+
+        // --- Action Logic ---
+        const getDetails = () => ({
+          to: modal.querySelector('#modalTo').value,
+          subject: modal.querySelector('#modalSubject').value,
+          body: modal.querySelector('#modalBody').value
+        });
+
+        const doDownload = () => {
+          // Re-use exportExcel logic? Or just trigger SKP download?
+          // User just wants to 'Download'. Let's assume SKP format is preferred, or Default?
+          // Context implies "attached the timesheet", so downloading it is the first step.
+          exportExcel('skp'); // Trigger standard download
+        };
+
+        modal.querySelector('#sendModalClose').addEventListener('click', () => modal.remove());
+
+        // 1. Download Only
+        modal.querySelector('#modalDownloadOnly').addEventListener('click', () => {
+          doDownload();
+          modal.remove();
+        });
+
+        // 2. Gmail
+        modal.querySelector('#modalGmail').addEventListener('click', () => {
+          doDownload();
+          const d = getDetails();
+          const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(d.to)}&su=${encodeURIComponent(d.subject)}&body=${encodeURIComponent(d.body)}`;
+          window.open(gmailUrl, '_blank');
+          modal.remove();
+        });
+
+        // 3. Outlook / MailTo (Outlook usually captures mailto, but we can try specific URL if web version, but mailto is safer for desktop app)
+        modal.querySelector('#modalOutlook').addEventListener('click', () => {
+          doDownload();
+          const d = getDetails();
+          // Try standard mailto, most Outlook users have it set as default
+          const mailto = `mailto:${d.to}?subject=${encodeURIComponent(d.subject)}&body=${encodeURIComponent(d.body)}`;
+          window.location.href = mailto;
+          modal.remove();
+        });
+
+        // 4. Mail App
+        modal.querySelector('#modalMailApp').addEventListener('click', () => {
+          doDownload();
+          const d = getDetails();
+          const mailto = `mailto:${d.to}?subject=${encodeURIComponent(d.subject)}&body=${encodeURIComponent(d.body)}`;
+          window.location.href = mailto;
+          modal.remove();
+        });
+
+        return modal;
+      }
+
+      // Function to load timesheet from database when month/year/employee changes
+      async function loadTimesheetForCurrentSelection() {
+        const state = window.__timesheetState;
+        if (!state) return;
+
+        try {
+          const auth = window.firebaseAuth;
+          const db = window.firebaseDb;
+          if (!auth || !db || !window.firebase || !window.firebase.firestoreFunctions) {
+            console.warn('Firebase not available for loading timesheet');
+            return;
+          }
+
+          // Wait for auth state to be ready
+          let user = auth.currentUser;
+          if (!user) {
+            await new Promise((resolve) => {
+              if (auth.currentUser) {
+                resolve();
+              } else {
+              const unsubscribe = onAuthStateChangedSafe(auth, (authUser) => {
+                  unsubscribe();
+                  resolve();
+                });
+                setTimeout(resolve, 2000);
+              }
+            });
+            user = auth.currentUser;
+          }
+
+          if (!actualUser || !userId) {
+            console.warn('No authenticated user for loading timesheet');
+            return;
+          }
+
+          console.log('Load timesheet - Auth check:', {
+            userId: user.uid,
+            userEmail: user.email
+          });
+
+          const { doc, getDoc } = window.firebase.firestoreFunctions;
+          const empId = state.empId || 'UNKNOWN';
+
+          if (empId === 'UNKNOWN') {
+            // No employee ID set, clear timesheet
+            state.statusMap = {};
+            if (window.__renderCalendar) window.__renderCalendar();
+            if (window.__updateSummaryAndReport) window.__updateSummaryAndReport();
+            return;
+          }
+
+          const docId = `${empId}_${state.year}_${state.monthIndex}`;
+          const ref = doc(db, 'timesheets', docId);
+          const snap = await getDoc(ref);
+
+          if (snap.exists()) {
+            const data = snap.data();
+            if (data.statusMap && typeof data.statusMap === 'object') {
+              state.statusMap = { ...data.statusMap };
+              console.log(`Timesheet loaded: ${docId}`);
+              if (window.__renderCalendar) window.__renderCalendar();
+              if (window.__updateSummaryAndReport) window.__updateSummaryAndReport();
+            }
+          } else {
+            // Clear statusMap if no saved data exists for this month/year/employee
+            state.statusMap = {};
+            console.log(`No timesheet found: ${docId}`);
+            if (window.__renderCalendar) window.__renderCalendar();
+            if (window.__updateSummaryAndReport) window.__updateSummaryAndReport();
+          }
+        } catch (err) {
+          if (err && err.code === 'permission-denied') {
+            console.error('Permission denied loading timesheet:', {
+              user: user ? { uid: user.uid, email: user.email } : 'No user',
+              error: err.message
+            });
+          } else {
+            console.error('Error loading timesheet:', err);
+          }
+          // Don't block UI, just log the error
+        }
+      }
+
+      // Helper function to clean up statusMap - remove dates that don't belong to current month/year
+      function cleanupStatusMapForCurrentMonth() {
+        const y = state.year;
+        const m = state.monthIndex;
+        const total = daysInMonth(y, m);
+        
+        // Build set of valid ISO dates for current month
+        const validDates = new Set();
+        for (let d = 1; d <= total; d++) {
+          validDates.add(isoDate(y, m, d));
+        }
+        
+        // Remove any statusMap entries that don't belong to current month
+        const keysToRemove = [];
+        for (const dateKey in state.statusMap) {
+          if (!validDates.has(dateKey)) {
+            keysToRemove.push(dateKey);
+          }
+        }
+        
+        if (keysToRemove.length > 0) {
+          console.log(`Cleaning up ${keysToRemove.length} invalid date entries from statusMap`);
+          keysToRemove.forEach(key => delete state.statusMap[key]);
+        }
+      }
+
+      // wire events
+      if (selectMonth) selectMonth.addEventListener('change', () => {
+        const oldMonth = state.monthIndex;
+        state.monthIndex = Number(selectMonth.value);
+        
+        // Validate month index
+        if (state.monthIndex < 0 || state.monthIndex > 11) {
+          console.error(`Invalid month index: ${state.monthIndex}`);
+          state.monthIndex = oldMonth;
+          selectMonth.value = oldMonth;
+          return;
+        }
+        
+        renderHeading();
+        
+        // Clean up invalid dates before loading new month data
+        // This removes any dates that don't belong to the new month
+        cleanupStatusMapForCurrentMonth();
+        
+        // Load timesheet data and then synchronize all components
+        loadTimesheetForCurrentSelection().then(() => {
+          // Ensure calendar, summary, and report all update synchronously
+          // Call renderCalendar directly - it will call updateSummaryAndReport internally
+          renderCalendar();
+        }).catch((error) => {
+          console.error('Error loading timesheet after month change:', error);
+          // Still render calendar even if data load fails
+          renderCalendar();
+        });
+      });
+      if (selectYear) selectYear.addEventListener('change', () => {
+        const oldYear = state.year;
+        state.year = Number(selectYear.value);
+        
+        // Validate year
+        if (state.year < 1900 || state.year > 2100) {
+          console.warn(`Unusual year value: ${state.year}`);
+        }
+        
+        renderHeading();
+        
+        // Clean up invalid dates before loading new year data
+        // This removes any dates that don't belong to the new year/month combination
+        cleanupStatusMapForCurrentMonth();
+        
+        // Load timesheet data and then synchronize all components
+        loadTimesheetForCurrentSelection().then(() => {
+          // Ensure calendar, summary, and report all update synchronously
+          // Call renderCalendar directly - it will call updateSummaryAndReport internally
+          renderCalendar();
+        }).catch((error) => {
+          console.error('Error loading timesheet after year change:', error);
+          // Still render calendar even if data load fails
+          renderCalendar();
+        });
+      });
+      if (inputName) inputName.addEventListener('input', () => { state.name = inputName.value || 'Unnamed'; renderHeading(); });
+      if (inputCompany) inputCompany.addEventListener('input', () => { state.company = inputCompany.value || ''; renderHeading(); });
+      if (inputEmpId) inputEmpId.addEventListener('input', () => {
+        state.empId = inputEmpId.value || '';
+        renderHeading();
+        // Reload timesheet when employee ID changes
+        loadTimesheetForCurrentSelection().then(() => {
+          if (window.__renderCalendar) window.__renderCalendar();
+        });
+      });
+
+      if (btnExportSKP) btnExportSKP.addEventListener('click', () => exportExcel('skp'));
+      const btnExportTemplate = document.getElementById('btnExportTemplate');
+      if (btnExportTemplate) btnExportTemplate.addEventListener('click', () => exportExcel('default'));
+      if (btnExport) btnExport.addEventListener('click', () => exportExcel('default'));
+      if (btnExportCSV) btnExportCSV.addEventListener('click', exportCSV);
+
+      if (btnMarkWeekends) btnMarkWeekends.addEventListener('click', markWeekendsAsHoliday);
+      if (btnClearMonth) btnClearMonth.addEventListener('click', () => { if (confirm('Clear statuses for this month?')) clearMonth(); });
+      if (btnSendTop) btnSendTop.addEventListener('click', () => createSendModal());
+      if (btnPrevMonth) btnPrevMonth.addEventListener('click', () => {
+        const oldMonth = state.monthIndex;
+        const oldYear = state.year;
+        
+        state.monthIndex = (state.monthIndex + 11) % 12;
+        if (state.monthIndex === 11) state.year--;
+        
+        // Validate state after change
+        if (state.monthIndex < 0 || state.monthIndex > 11) {
+          console.error(`Invalid month index after prev: ${state.monthIndex}`);
+          state.monthIndex = oldMonth;
+          state.year = oldYear;
+          return;
+        }
+        
+        renderHeading();
+        if (selectMonth) selectMonth.value = state.monthIndex;
+        if (selectYear) selectYear.value = state.year;
+        
+        // Clean up invalid dates and synchronize all components
+        // This removes any dates that don't belong to the new month/year
+        cleanupStatusMapForCurrentMonth();
+        
+        // Load timesheet data and then synchronize all components
+        loadTimesheetForCurrentSelection().then(() => {
+          // Call renderCalendar directly - it will call updateSummaryAndReport internally
+          renderCalendar();
+        }).catch((error) => {
+          console.error('Error loading timesheet after prev month:', error);
+          // Still render calendar even if data load fails
+          renderCalendar();
+        });
+      });
+      if (btnNextMonth) btnNextMonth.addEventListener('click', () => {
+        const oldMonth = state.monthIndex;
+        const oldYear = state.year;
+        
+        state.monthIndex = (state.monthIndex + 1) % 12;
+        if (state.monthIndex === 0) state.year++;
+        
+        // Validate state after change
+        if (state.monthIndex < 0 || state.monthIndex > 11) {
+          console.error(`Invalid month index after next: ${state.monthIndex}`);
+          state.monthIndex = oldMonth;
+          state.year = oldYear;
+          return;
+        }
+        
+        renderHeading();
+        if (selectMonth) selectMonth.value = state.monthIndex;
+        if (selectYear) selectYear.value = state.year;
+        
+        // Clean up invalid dates and synchronize all components
+        // This removes any dates that don't belong to the new month/year
+        cleanupStatusMapForCurrentMonth();
+        
+        // Load timesheet data and then synchronize all components
+        loadTimesheetForCurrentSelection().then(() => {
+          // Call renderCalendar directly - it will call updateSummaryAndReport internally
+          renderCalendar();
+        }).catch((error) => {
+          console.error('Error loading timesheet after next month:', error);
+          // Still render calendar even if data load fails
+          renderCalendar();
+        });
+      });
+      if (btnToggleWeekendColor) btnToggleWeekendColor.addEventListener('click', markWeekends);
+
+      // init - only if calendar element exists
+      if (calendarEl && headingMonth) {
+        renderHeading();
+        renderCalendar();
+      } else {
+        console.error('Required elements not found. Calendar:', !!calendarEl, 'Heading:', !!headingMonth);
+        setTimeout(initTimesheet, 100); // Retry
+        return;
+      }
+      
+      window.__timesheetState = state;
+      window.__renderCalendar = renderCalendar;
+      window.__updateSummaryAndReport = updateSummaryAndReport;
+      // Expose helper functions globally for saveTimesheetToDB
+      window.__daysInMonth = daysInMonth;
+      window.__isoDate = isoDate;
+      window.__monthNames = monthNames;
+
+      // Profile sidebar disabled
+      // initUserProfileSidebar();
+      }
+      
+      // DOM ready check
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initTimesheet);
+      } else {
+        // DOM already loaded, but wait a tick to ensure all elements are available
+        setTimeout(initTimesheet, 0);
+      }
+    })();
+
+    // Check if user has SKP access
+    async function checkSKPUserStatus() {
+      const auth = window.firebaseAuth || (window.firebase && window.firebase.auth);
+      const db = window.firebaseDb || (window.firebase && window.firebase.firestore);
+
+      if (!auth) return;
+
+      try {
+        // Wait for auth to be ready
+        await new Promise((resolve) => {
+          if (auth.currentUser) {
+            resolve();
+          } else {
+            const unsubscribe = auth.onAuthStateChanged(() => {
+              unsubscribe();
+              resolve();
+            });
+            setTimeout(resolve, 1000);
+          }
+        });
+
+        // Use actualUser and userId from the auth state change handler scope
+        if (!actualUser || !userId) return;
+
+        if (db && window.firebase && window.firebase.firestoreFunctions) {
+          try {
+            const { doc, getDoc } = window.firebase.firestoreFunctions;
+            const userDocRef = doc(db, 'users', userId);
+            const userDoc = await getDoc(userDocRef);
+
+            if (userDoc.exists) {
+              const userData = userDoc.data();
+              const isSKPUser = userData.isSKPUser || false;
+
+              const templateSelect = document.getElementById('templateSelect');
+              const btnExportSKP = document.getElementById('btnExportSKP');
+
+              if (!isSKPUser) {
+                // Hide SKP option from dropdown
+                if (templateSelect) {
+                  const skpOption = templateSelect.querySelector('option[value="indian_skp"]');
+                  if (skpOption) skpOption.remove();
+                  // Set default to US Standard
+                  templateSelect.value = 'us_standard';
+                }
+                // Hide SKP button
+                if (btnExportSKP) btnExportSKP.style.display = 'none';
+              } else {
+                // Show SKP option and button
+                if (btnExportSKP) btnExportSKP.style.display = 'inline-block';
+              }
+            }
+          } catch (firestoreErr) {
+            console.warn('Firestore error checking SKP status:', firestoreErr);
+          }
+        }
+      } catch (err) {
+        console.error('Error checking SKP status:', err);
+      }
+    }
+
+    // Profile Sidebar Functions
+    function initUserProfileSidebar() {
+      const sidebarToggle = document.getElementById('sidebarToggle');
+      const sidebarClose = document.getElementById('sidebarClose');
+      const sidebarMinimal = document.getElementById('sidebarMinimal');
+      const sidebarExpanded = document.getElementById('sidebarExpanded');
+
+      if (!sidebarToggle || !sidebarClose || !sidebarMinimal || !sidebarExpanded) {
+        console.error('Sidebar elements not found. Check HTML structure.');
+        console.log('Missing elements:', {
+          sidebarToggle: !!sidebarToggle,
+          sidebarClose: !!sidebarClose,
+          sidebarMinimal: !!sidebarMinimal,
+          sidebarExpanded: !!sidebarExpanded
+        });
+        return;
+      }
+
+      if (sidebarToggle) {
+        sidebarToggle.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (sidebarExpanded) {
+            sidebarExpanded.classList.add('show');
+            // Hide minimal sidebar when expanded
+            if (sidebarMinimal) sidebarMinimal.style.opacity = '0';
+            setTimeout(() => {
+              if (sidebarMinimal) sidebarMinimal.style.pointerEvents = 'none';
+            }, 150);
+          }
+          loadUserProfile();
+        });
+      }
+
+      if (sidebarClose) {
+        sidebarClose.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (sidebarExpanded) {
+            sidebarExpanded.classList.remove('show');
+            // Show minimal sidebar when collapsed
+            if (sidebarMinimal) {
+              sidebarMinimal.style.pointerEvents = 'auto';
+              sidebarMinimal.style.opacity = '1';
+            }
+          }
+        });
+      }
+
+      // Close sidebar when clicking outside
+      document.addEventListener('click', (e) => {
+        if (sidebarExpanded && sidebarExpanded.classList.contains('show')) {
+          const isClickInside = sidebarExpanded.contains(e.target);
+          const isClickOnToggle = sidebarToggle && sidebarToggle.contains(e.target);
+
+          if (!isClickInside && !isClickOnToggle) {
+            sidebarExpanded.classList.remove('show');
+            if (sidebarMinimal) {
+              sidebarMinimal.style.pointerEvents = 'auto';
+              sidebarMinimal.style.opacity = '1';
+            }
+          }
+        }
+      });
+
+      // Menu navigation handlers
+      const menuProfileManagement = document.getElementById('menuProfileManagement');
+      const menuTimesheetManagement = document.getElementById('menuTimesheetManagement');
+      const submenuProfile = document.getElementById('submenuProfile');
+      const submenuTimesheet = document.getElementById('submenuTimesheet');
+      const backFromProfile = document.getElementById('backFromProfile');
+      const backFromTimesheet = document.getElementById('backFromTimesheet');
+
+      function showMainMenu() {
+        if (submenuProfile) submenuProfile.style.display = 'none';
+        if (submenuTimesheet) submenuTimesheet.style.display = 'none';
+      }
+
+      function showSubmenu(submenu) {
+        if (submenuProfile) submenuProfile.style.display = 'none';
+        if (submenuTimesheet) submenuTimesheet.style.display = 'none';
+        if (submenu) submenu.style.display = 'flex';
+      }
+
+      if (menuProfileManagement) {
+        menuProfileManagement.addEventListener('click', () => {
+          showSubmenu(submenuProfile);
+          loadUserProfile();
+        });
+      }
+
+      if (menuTimesheetManagement) {
+        menuTimesheetManagement.addEventListener('click', () => {
+          showSubmenu(submenuTimesheet);
+          const auth = window.firebaseAuth;
+          if (auth && auth.currentUser) {
+            loadSavedTimesheetsCount(auth.currentUser.uid);
+          }
+        });
+      }
+
+      if (backFromProfile) {
+        backFromProfile.addEventListener('click', () => {
+          showMainMenu();
+        });
+      }
+
+      if (backFromTimesheet) {
+        backFromTimesheet.addEventListener('click', () => {
+          showMainMenu();
+        });
+      }
+
+      // Load initial profile data
+      setTimeout(() => loadUserProfile(), 500);
+    }
+
+    async function loadUserProfile() {
+      // Get state from window (set by main IIFE)
+      const currentState = window.__timesheetState || { name: 'User', company: '', empId: '' };
+
+      // Check if Firebase is available - use proper Firestore import
+      let auth, db;
+      try {
+        if (window.firebaseAuth) {
+          auth = window.firebaseAuth;
+        }
+        if (window.firebaseDb) {
+          db = window.firebaseDb;
+        } else if (window.firebase && window.firebase.firestore) {
+          db = window.firebase.firestore();
+        }
+      } catch (e) {
+        console.warn('Firebase not available:', e);
+      }
+
+      if (!auth) {
+        console.warn('Firebase not loaded, using default profile');
+        updateProfileUI({
+          displayName: currentState.name || 'User',
+          email: 'user@example.com',
+          company: currentState.company || '',
+          empId: currentState.empId || ''
+        });
+        return;
+      }
+
+      try {
+        // Wait for auth to be ready
+        await new Promise((resolve) => {
+          if (auth.currentUser) {
+            resolve();
+          } else {
+            const unsubscribe = auth.onAuthStateChanged(() => {
+              unsubscribe();
+              resolve();
+            });
+            setTimeout(resolve, 1000);
+          }
+        });
+
+        const user = auth.currentUser;
+
+        if (!user) {
+          updateProfileUI({
+            displayName: currentState.name || 'Guest',
+            email: 'Not logged in',
+            company: currentState.company || '',
+            empId: currentState.empId || ''
+          });
+          return;
+        }
+
+        // Load from Firestore - use proper Firestore API
+        if (db && window.firebase && window.firebase.firestoreFunctions) {
+          try {
+            const { doc, getDoc } = window.firebase.firestoreFunctions;
+            const userDocRef = doc(db, 'users', userId);
+            const userDoc = await getDoc(userDocRef);
+
+            if (userDoc.exists) {
+              const userData = userDoc.data();
+
+              // Update state from user profile (reference structure: name, company, empId, isSKPUser)
+              if (userData.name) currentState.name = userData.name;
+              if (userData.company) currentState.company = userData.company;
+              if (userData.empId) currentState.empId = userData.empId;
+
+              // Update form fields
+              const inputCompany = document.getElementById('inputCompany');
+              const inputName = document.getElementById('inputName');
+              const inputEmpId = document.getElementById('inputEmpId');
+              if (inputCompany) inputCompany.value = currentState.company;
+              if (inputName) inputName.value = currentState.name;
+              if (inputEmpId) inputEmpId.value = currentState.empId;
+
+              updateProfileUI({
+                displayName: userData.name || actualUser.displayName || currentState.name || 'User',
+                email: userEmail || userData.email || '',
+                lastLogin: userData.lastLogin ? (userData.lastLogin.toDate ? userData.lastLogin.toDate().toLocaleString() : new Date(userData.lastLogin).toLocaleString()) : '-',
+                role: userData.role || 'user',
+                photoURL: actualUser.photoURL || userData.photoURL || null,
+                company: userData.company || currentState.company || '',
+                empId: userData.empId || currentState.empId || ''
+              });
+
+              // Load saved timesheets count
+              loadSavedTimesheetsCount(userId);
+            } else {
+              // No user profile in Firestore yet - Generate defaults from Auth
+              // CRITICAL: Generate a unique empId to prevent saving to shared 'NE-2047' document
+              let newEmpId = '';
+              if (userEmail) {
+                // Generate from email (e.g. LIKHICHAND from likhichand@gmail.com)
+                const prefix = user.email.split('@')[0].toUpperCase().replace(/[^A-Z0-9]/g, '');
+                newEmpId = 'EMP-' + prefix.substring(0, 10);
+              } else {
+                newEmpId = 'EMP-' + user.uid.substring(0, 6).toUpperCase();
+              }
+
+              // Update state with generated defaults, ignoring template 'NE-2047'
+              currentState.name = user.displayName || user.email.split('@')[0] || 'User';
+              // Only override empId if it's currently the template default
+              if (!currentState.empId || currentState.empId === 'NE-2047') {
+                currentState.empId = newEmpId;
+              }
+
+              // Update form fields immediately
+              const inputName = document.getElementById('inputName');
+              const inputEmpId = document.getElementById('inputEmpId');
+              if (inputName) inputName.value = currentState.name;
+              if (inputEmpId) inputEmpId.value = currentState.empId;
+
+              updateProfileUI({
+                displayName: actualUser.displayName || currentState.name || 'User',
+                email: userEmail || '',
+                lastLogin: '-',
+                role: 'user',
+                company: currentState.company || '',
+                empId: currentState.empId
+              });
+            }
+          } catch (firestoreErr) {
+            console.warn('Firestore error, using auth data:', firestoreErr);
+
+            // Fallback generation on error too
+            if (!currentState.empId || currentState.empId === 'NE-2047') {
+              const prefix = user.email ? user.email.split('@')[0].toUpperCase() : 'USER';
+              currentState.empId = 'EMP-' + prefix.substring(0, 8);
+            }
+
+            const inputEmpId = document.getElementById('inputEmpId');
+            if (inputEmpId) inputEmpId.value = currentState.empId;
+
+            updateProfileUI({
+              displayName: user.displayName || currentState.name || 'User',
+              email: user.email || '',
+              lastLogin: '-',
+              role: 'user',
+              company: currentState.company || '',
+              empId: currentState.empId
+            });
+          }
+        } else {
+          // Fallback if DB not ready
+          if (!currentState.empId || currentState.empId === 'NE-2047') {
+            const prefix = user.email ? user.email.split('@')[0].toUpperCase() : 'USER';
+            currentState.empId = 'EMP-' + prefix.substring(0, 8);
+          }
+          const inputEmpId = document.getElementById('inputEmpId');
+          if (inputEmpId) inputEmpId.value = currentState.empId;
+
+          updateProfileUI({
+            displayName: user.displayName || currentState.name || 'User',
+            email: user.email || '',
+            lastLogin: '-',
+            role: 'user',
+            company: currentState.company || '',
+            empId: currentState.empId
+          });
+        }
+      } catch (err) {
+        console.error('Error loading user profile:', err);
+        updateProfileUI({
+          displayName: currentState.name || 'User',
+          email: 'Error loading',
+          company: currentState.company || '',
+          empId: currentState.empId || ''
+        });
+      }
+    }
+
+    // Save user profile to Firestore
+    async function saveUserProfile(name, company, empId, isSKPUser = false) {
+      const auth = window.firebaseAuth;
+      const db = window.firebaseDb;
+
+      if (!auth || !db) {
+        showToast('Firebase not initialized', 'error');
+        return false;
+      }
+
+      const user = auth.currentUser;
+      if (!user) {
+        showToast('Please log in to save profile', 'warning');
+        return false;
+      }
+
+      try {
+        const { doc, setDoc } = window.firebase.firestoreFunctions;
+        const userRef = doc(db, 'users', user.uid);
+
+        await setDoc(userRef, {
+          name: name || '',
+          company: company || '',
+          empId: empId || '',
+          isSKPUser: isSKPUser || false
+        }, { merge: true });
+
+        // Update state
+        const currentState = window.__timesheetState;
+        if (currentState) {
+          if (name) currentState.name = name;
+          if (company) currentState.company = company;
+          if (empId) currentState.empId = empId;
+        }
+
+        return true;
+      } catch (err) {
+        console.error('Error saving user profile:', err);
+        showToast('Failed to save profile: ' + err.message, 'error');
+        return false;
+      }
+    }
+
+    function updateProfileUI(data) {
+      const nameEl = document.getElementById('profileName');
+      const emailEl = document.getElementById('profileEmail');
+      const nameDetailEl = document.getElementById('profileNameDetail');
+      const emailDetailEl = document.getElementById('profileEmailDetail');
+      const lastLoginEl = document.getElementById('profileLastLogin');
+      const roleEl = document.getElementById('profileRole');
+      const nameMinimalEl = document.getElementById('sidebarNameMinimal');
+      const avatarPlaceholder = document.getElementById('avatarPlaceholder');
+      const avatarPlaceholderLarge = document.getElementById('avatarPlaceholderLarge');
+      const companyEl = document.getElementById('profileCompany');
+      const empIdEl = document.getElementById('profileEmpId');
+      const companySection = document.getElementById('companySection');
+
+      const displayName = data.displayName || data.name || 'User';
+
+      if (nameEl) nameEl.textContent = displayName;
+      if (emailEl) emailEl.textContent = data.email || '-';
+      if (nameDetailEl) nameDetailEl.textContent = displayName;
+      if (emailDetailEl) emailDetailEl.textContent = data.email || '-';
+      if (lastLoginEl) lastLoginEl.textContent = data.lastLogin || '-';
+      if (roleEl) roleEl.textContent = data.role || '-';
+      if (nameMinimalEl) nameMinimalEl.textContent = displayName.substring(0, 8);
+
+      const firstLetter = displayName.charAt(0).toUpperCase();
+      if (avatarPlaceholder) avatarPlaceholder.textContent = firstLetter;
+      if (avatarPlaceholderLarge) avatarPlaceholderLarge.textContent = firstLetter;
+
+      // Update company info
+      if (data.company || data.empId) {
+        if (companySection) companySection.style.display = 'block';
+        if (companyEl) companyEl.textContent = data.company || '-';
+        if (empIdEl) empIdEl.textContent = data.empId || '-';
+      }
+
+      // Update avatar if photo URL available
+      const avatarEl = document.getElementById('sidebarAvatar');
+      const avatarLargeEl = document.getElementById('avatarLarge');
+
+      if (data.photoURL) {
+        if (avatarEl) {
+          avatarEl.innerHTML = `<img src="${data.photoURL}" alt="Profile" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+        }
+        if (avatarLargeEl) {
+          avatarLargeEl.innerHTML = `<img src="${data.photoURL}" alt="Profile" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+        }
+      } else {
+        // Reset to placeholder if no photo
+        if (avatarEl) {
+          const placeholder = avatarEl.querySelector('.avatar-placeholder');
+          if (placeholder) {
+            placeholder.textContent = firstLetter;
+          } else {
+            avatarEl.innerHTML = `<div class="avatar-placeholder">${firstLetter}</div>`;
+          }
+        }
+        if (avatarLargeEl) {
+          const placeholder = avatarLargeEl.querySelector('.avatar-placeholder-large');
+          if (placeholder) {
+            placeholder.textContent = firstLetter;
+          } else {
+            avatarLargeEl.innerHTML = `<div class="avatar-placeholder-large">${firstLetter}</div>`;
+          }
+        }
+      }
+    }
+
+    async function loadSavedTimesheetsCount(userId) {
+      // Clear previous data first
+      const statSavedEl = document.getElementById('statSaved');
+      const statLastExportEl = document.getElementById('statLastExport');
+      const timesheetsList = document.getElementById('timesheetsList');
+      if (statSavedEl) statSavedEl.textContent = '0';
+      if (statLastExportEl) statLastExportEl.textContent = '-';
+      if (timesheetsList) timesheetsList.innerHTML = '<div class="empty-state">No saved timesheets</div>';
+
+      if (!userId) {
+        return;
+      }
+
+      let db;
+      try {
+        if (window.firebaseDb) {
+          db = window.firebaseDb;
+        } else {
+          return;
+        }
+      } catch (e) {
+        return;
+      }
+
+      if (!db || !window.firebase || !window.firebase.firestoreFunctions) return;
+
+      try {
+        const { collection, query, where, orderBy, limit, getDocs } = window.firebase.firestoreFunctions;
+        const timesheetsRef = collection(db, 'timesheets');
+
+        // Try query with orderBy, fallback to simple query if index missing
+        let snapshot;
+        try {
+          const q = query(
+            timesheetsRef,
+            where('userId', '==', userId),
+            orderBy('savedAt', 'desc'),
+            limit(10)
+          );
+          snapshot = await getDocs(q);
+        } catch (indexError) {
+          if (indexError.message && indexError.message.includes('index')) {
+            console.warn('Firestore index not created yet. Using simple query.');
+            // Fallback: query without orderBy
+            const q = query(
+              timesheetsRef,
+              where('userId', '==', userId),
+              limit(10)
+            );
+            snapshot = await getDocs(q);
+          } else {
+            throw indexError;
+          }
+        }
+
+        const count = snapshot.size;
+        if (statSavedEl) statSavedEl.textContent = count;
+
+        // Load last export date
+        if (snapshot.size > 0) {
+          const lastExport = snapshot.docs[0].data().exportedAt || snapshot.docs[0].data().savedAt;
+
+          if (lastExport) {
+            const lastExportDate = lastExport.toDate ? lastExport.toDate() : new Date(lastExport);
+            if (statLastExportEl) statLastExportEl.textContent = lastExportDate.toLocaleDateString();
+          }
+        }
+
+        // Load saved timesheets list
+        loadSavedTimesheetsList(snapshot);
+      } catch (err) {
+        console.warn('Skipping timesheet count (non-critical):', err.message);
+        // Don't show error to user, just skip the count
+      }
+    }
+
+    function loadSavedTimesheetsList(snapshot) {
+      const timesheetsList = document.getElementById('timesheetsList');
+      if (!timesheetsList) return;
+
+      if (!snapshot || snapshot.empty) {
+        timesheetsList.innerHTML = '<div class="empty-state">No saved timesheets</div>';
+        return;
+      }
+
+      timesheetsList.innerHTML = snapshot.docs.map(doc => {
+        const data = doc.data();
+        const savedDate = data.savedAt ? (data.savedAt.toDate ? data.savedAt.toDate() : new Date(data.savedAt)) : new Date();
+        return `
+          <div class="timesheet-item" data-id="${doc.id}">
+            <div class="timesheet-item-header">${data.month || ''} ${data.year || ''}</div>
+            <div class="timesheet-item-meta">
+              ${data.employeeName || ''} • ${data.templateUsed || 'default'} • ${savedDate.toLocaleDateString()}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // Add click handlers to load timesheet
+      timesheetsList.querySelectorAll('.timesheet-item').forEach(item => {
+        item.addEventListener('click', () => {
+          const timesheetId = item.dataset.id;
+          loadTimesheetFromSaved(timesheetId);
+        });
+      });
+    }
+
+    async function loadTimesheetFromSaved(timesheetId) {
+      const currentState = window.__timesheetState;
+      if (!currentState) {
+        showToast('Application not initialized', 'error');
+        return;
+      }
+
+      let db;
+      try {
+        if (window.firebaseDb) {
+          db = window.firebaseDb;
+        } else {
+          showToast('Database not available', 'error');
+          return;
+        }
+      } catch (e) {
+        showToast('Database error', 'error');
+        return;
+      }
+
+      if (!db || !window.firebase || !window.firebase.firestoreFunctions) {
+        alert('Firestore not available');
+        return;
+      }
+
+      try {
+        const { doc, getDoc } = window.firebase.firestoreFunctions;
+        const timesheetDocRef = doc(db, 'timesheets', timesheetId);
+        const timesheetDoc = await getDoc(timesheetDocRef);
+
+        if (!timesheetDoc.exists()) {
+          showToast('Timesheet not found', 'error');
+          return;
+        }
+
+        const data = timesheetDoc.data();
+
+        // Set month/year from document data (new structure uses monthIndex)
+        if (data.year !== undefined) {
+          currentState.year = data.year;
+          const selectYear = document.getElementById('selectYear');
+          if (selectYear) selectYear.value = data.year;
+        }
+        if (data.month !== undefined) {
+          currentState.monthIndex = data.month;
+          const selectMonth = document.getElementById('selectMonth');
+          if (selectMonth) selectMonth.value = data.month;
+        }
+
+        // Load statusMap directly (new structure)
+        if (data.statusMap && typeof data.statusMap === 'object') {
+          currentState.statusMap = data.statusMap;
+        } else {
+          // Fallback: handle old structure with attendanceRows
+          currentState.statusMap = {};
+          if (Array.isArray(data.attendanceRows)) {
+            data.attendanceRows.forEach(row => {
+              if (row.date && row.status) {
+                let iso;
+                if (row.date.includes('/')) {
+                  const dateParts = row.date.split('/');
+                  if (dateParts.length === 3) {
+                    iso = `${dateParts[2]}-${dateParts[0].padStart(2, '0')}-${dateParts[1].padStart(2, '0')}`;
+                  }
+                } else if (row.date.includes('-')) {
+                  iso = row.date;
+                } else {
+                  const d = new Date(row.date);
+                  if (!isNaN(d.getTime())) {
+                    iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                  }
+                }
+                if (iso) {
+                  currentState.statusMap[iso] = row.status;
+                }
+              }
+            });
+          }
+        }
+
+        // Load user profile data if available (from users/{uid})
+        const auth = window.firebaseAuth;
+        if (auth && auth.currentUser) {
+          try {
+            const userDocRef = doc(db, 'users', auth.currentUser.uid);
+            const userDoc = await getDoc(userDocRef);
+            if (userDoc.exists()) {
+              const userData = userDoc.data();
+              if (userData.name) currentState.name = userData.name;
+              if (userData.company) currentState.company = userData.company;
+              if (userData.empId) currentState.empId = userData.empId;
+
+              // Update form fields
+              const inputCompany = document.getElementById('inputCompany');
+              const inputName = document.getElementById('inputName');
+              const inputEmpId = document.getElementById('inputEmpId');
+              if (inputCompany) inputCompany.value = currentState.company;
+              if (inputName) inputName.value = currentState.name;
+              if (inputEmpId) inputEmpId.value = currentState.empId;
+            }
+          } catch (userErr) {
+            console.warn('Error loading user profile:', userErr);
+          }
+        }
+
+        // Trigger input events to update UI
+        if (inputCompany) {
+          inputCompany.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        if (inputName) {
+          inputName.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        if (inputEmpId) {
+          inputEmpId.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        if (selectMonth) {
+          selectMonth.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        if (selectYear) {
+          selectYear.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+
+        // Call render functions if available
+        if (window.__renderCalendar) {
+          window.__renderCalendar();
+        }
+        if (window.__renderHeading) {
+          window.__renderHeading();
+        }
+
+        showToast('Timesheet loaded successfully!', 'success');
+      } catch (err) {
+        if (err && err.code === 'permission-denied') {
+          console.warn('Timesheet read denied (insufficient permissions). Ensure you are logged in and the doc exists.');
+        } else {
+          console.error('Error loading timesheet:', err);
+          showToast('Failed to load timesheet: ' + err.message, 'error');
+        }
+      }
+    }
+
+    // Save timesheet to database - Direct Firestore operation
+    async function saveTimesheetToDB() {
+      const btnSave = document.getElementById('btnSaveTimesheet');
+      const btnSaveTop = document.getElementById('btnSaveTimesheetTop');
+      const buttons = [btnSave, btnSaveTop].filter(Boolean);
+      buttons.forEach(btn => {
+        btn.dataset.originalText = btn.dataset.originalText || btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'Saving...';
+      });
+
+      const restoreButtons = () => {
+        buttons.forEach(btn => {
+          btn.disabled = false;
+          btn.textContent = btn.dataset.originalText || 'Save Timesheet';
+        });
+      };
+
+      try {
+        const auth = window.firebaseAuth || (window.firebase && window.firebase.auth);
+        const db = window.firebaseDb;
+        const currentState = window.__timesheetState;
+
+        if (!currentState) {
+          showToast('Application state not available', 'error');
+          restoreButtons();
+          return;
+        }
+
+        if (!auth) {
+          showToast('Authentication not available. Please refresh the page.', 'error');
+          restoreButtons();
+          return;
+        }
+
+        // Wait for auth state to be ready
+        let user = auth.currentUser;
+        if (!user) {
+          await new Promise((resolve) => {
+            if (auth.currentUser) {
+              resolve();
+            } else {
+              const unsubscribe = onAuthStateChangedSafe(auth, (authUser) => {
+                unsubscribe();
+                resolve();
+              });
+              setTimeout(resolve, 2000); // Timeout after 2 seconds
+            }
+          });
+          user = auth.currentUser;
+        }
+
+        // Log auth state for debugging
+        console.log('Save timesheet - Auth check:', {
+          hasAuth: !!auth,
+          hasUser: !!user,
+          userId: user ? user.uid : 'none',
+          userEmail: user ? user.email : 'none'
+        });
+
+        if (!user || !user.uid) {
+          showToast('Sign in required. Redirecting to sign in...', 'error');
+          restoreButtons();
+          
+          // Redirect to login with return URL
+          const currentUrl = window.location.href;
+          const loginUrl = `https://auth.astravyn.com?redirect=${encodeURIComponent(currentUrl)}`;
+          
+          setTimeout(() => {
+            window.location.href = loginUrl;
+          }, 2000);
+          return;
+        }
+
+        const savePayload = () => {
+          // Use global helper functions or define locally if not available
+          const daysInMonth = window.__daysInMonth || ((y, m) => new Date(y, m + 1, 0).getDate());
+          const isoDate = window.__isoDate || ((y, m, d) => `${String(y).padStart(4, '0')}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
+          const monthNames = window.__monthNames || ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+          const totalDays = daysInMonth(currentState.year, currentState.monthIndex);
+          let present = 0, leave = 0, comp = 0, hol = 0;
+          const attendanceRows = [];
+          for (let d = 1; d <= totalDays; d++) {
+            const iso = isoDate(currentState.year, currentState.monthIndex, d);
+            const status = currentState.statusMap[iso] || '';
+            if (status === 'P') present++;
+            if (status === 'L') leave++;
+            if (status === 'C') comp++;
+            if (status === 'H' || status === 'ST' || status === 'SU') hol++;
+            attendanceRows.push({ date: iso, status });
+          }
+          const workingDays = Math.max(0, totalDays - hol);
+          const attendancePercent = workingDays > 0 ? Number(((present / workingDays) * 100).toFixed(1)) : 0;
+          return {
+            userId: user ? user.uid : 'local-user',
+            company: currentState.company || '',
+            employeeName: currentState.name || '',
+            employeeId: currentState.empId || '',
+            month: monthNames[currentState.monthIndex] || '',
+            year: currentState.year,
+            attendanceRows,
+            summary: {
+              totalPresent: present,
+              totalLeave: leave,
+              totalHoliday: hol,
+              attendancePercent
+            },
+            templateUsed: (document.getElementById('templateSelect') && document.getElementById('templateSelect').value) || 'default',
+            location: window.__userLocation || {}
+          };
+        };
+
+        if (!db || !window.firebase || !window.firebase.firestoreFunctions) {
+          showToast('Database not available. Please refresh the page.', 'error');
+          restoreButtons();
+          return;
+        }
+
+        let savedViaFirestore = false;
+        try {
+          const { doc, setDoc, getDoc, serverTimestamp } = window.firebase.firestoreFunctions;
+
+          // Use employeeId + year + month as document ID (consistent across read and write)
+          const empId = currentState.empId || 'UNKNOWN';
+          if (empId === 'UNKNOWN' || !empId || empId.trim() === '') {
+            throw new Error('Employee ID is required. Please enter an Employee ID before saving.');
+          }
+
+          const timesheetDocId = `${empId}_${currentState.year}_${currentState.monthIndex}`;
+          const timesheetRef = doc(db, 'timesheets', timesheetDocId);
+
+          console.log('Save timesheet - Document path:', {
+            docId: timesheetDocId,
+            userId: user.uid,
+            userEmail: user.email
+          });
+
+          // Check if document exists (read operation)
+          let existingDoc;
+          let isNewDocument = true;
+          let existingData = {};
+
+          try {
+            existingDoc = await getDoc(timesheetRef);
+            isNewDocument = !existingDoc.exists();
+            if (!isNewDocument) {
+              existingData = existingDoc.data() || {};
+              console.log('Save timesheet - Document exists, will update:', {
+                existingUid: existingData.uid || 'none',
+                currentUserUid: user.uid
+              });
+            } else {
+              console.log('Save timesheet - Document does not exist, will create');
+            }
+          } catch (readError) {
+            // If read fails, assume it's a new document (might be permission issue on read, but write might still work)
+            console.warn('Save timesheet - Could not read existing document, will attempt to create:', readError.code || readError.message);
+            isNewDocument = true;
+            existingData = {};
+          }
+
+          // Use current statusMap (user's current view is the source of truth)
+          const statusMapToSave = { ...currentState.statusMap };
+
+          // Prepare document data
+          // STRICT: Always set userId/userEmail to current authenticated user
+          // This satisfies the requirement: "Always write: userId = request.auth.uid"
+          // and ensures legacy documents get migrated to strict ownership on update.
+          const docData = {
+            userId: user.uid,
+            userEmail: user.email || '',
+            employeeId: empId,
+            employeeName: currentState.name || '',
+            company: currentState.company || '',
+            year: currentState.year,
+            month: currentState.monthIndex,
+            statusMap: statusMapToSave,
+            lastSavedBy: user.uid,
+            lastSavedByEmail: user.email || '',
+            updatedAt: serverTimestamp ? serverTimestamp() : new Date()
+          };
+
+          // For new documents or if createdAt is missing, set it.
+          // For existing documents, preserve createdAt.
+          if (isNewDocument || !existingData.createdAt) {
+            docData.createdAt = serverTimestamp ? serverTimestamp() : new Date();
+            // check for legacy field 'savedAt' if createdAt is missing
+            if (!isNewDocument && existingData.savedAt) {
+              docData.createdAt = existingData.savedAt;
+            }
+          } else {
+            docData.createdAt = existingData.createdAt;
+          }
+
+          // Legacy compatibility: maintain 'uid' field if system relies on it, sync with userId
+          docData.uid = user.uid;
+
+          console.log('Save timesheet - Data prepared:', {
+            docId: timesheetDocId,
+            isNew: isNewDocument,
+            userId: docData.userId,
+            userEmail: docData.userEmail
+          });
+          await setDoc(timesheetRef, docData, { merge: true });
+
+          console.log('Save timesheet - Success:', {
+            docId: timesheetDocId,
+            operation: isNewDocument ? 'created' : 'updated',
+            userId: user.uid,
+            userEmail: user.email
+          });
+          savedViaFirestore = true;
+        } catch (firestoreError) {
+          console.error('Save timesheet - Firestore error:', {
+            code: firestoreError.code,
+            message: firestoreError.message,
+            userId: user ? user.uid : 'none',
+            userEmail: user ? user.email : 'none'
+          });
+
+          const isPermissionIssue = firestoreError && (
+            firestoreError.code === 'permission-denied' ||
+            /insufficient permissions/i.test(firestoreError.message || '')
+          );
+
+          if (isPermissionIssue) {
+            const errorMsg = `Permission denied. User: ${user ? (user.email || user.uid) : 'Not logged in'}. Please ensure you are logged in and Firestore rules allow authenticated users to save timesheets.`;
+            showToast(errorMsg, 'error');
+            restoreButtons();
+            return;
+          }
+
+          // For other errors, re-throw to be caught by outer catch
+          throw firestoreError;
+        }
+
+        if (!savedViaFirestore) {
+          // Only fall back to backend if Firestore is not available (not if permission was denied)
+          if (!auth || !db || !user || !window.firebase || !window.firebase.firestoreFunctions) {
+            const payload = savePayload();
+            const response = await fetch('/api/save-timesheet', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+              let message = response.statusText;
+              try {
+                const errJson = await response.json();
+                if (errJson && errJson.error) {
+                  message = errJson.error;
+                }
+              } catch (_) { /* ignore parse errors */ }
+              throw new Error(message || 'Backend save failed');
+            }
+
+            const result = await response.json();
+            if (!result || !result.success) {
+              throw new Error((result && result.error) || 'Backend save failed');
+            }
+          } else {
+            // Firestore is available but save failed - this shouldn't happen if we got here
+            throw new Error('Failed to save to Firestore. Please check your permissions.');
+          }
+        }
+
+        showToast('Timesheet saved successfully!', 'success');
+
+        if (savedViaFirestore && typeof loadSavedTimesheetsCount === 'function') {
+          // Get userId from current auth state
+          const currentUserId = auth.currentUser?.uid || (await getCurrentUser())?.uid;
+          if (currentUserId) {
+            loadSavedTimesheetsCount(currentUserId);
+          }
+        }
+      } catch (err) {
+        console.error('Save error:', err);
+        showToast('Failed to save timesheet: ' + err.message, 'error');
+      } finally {
+        restoreButtons();
+      }
+    }
+
+    // Wire up save buttons (multiple entry points)
+    const btnSaveTimesheet = document.getElementById('btnSaveTimesheet');
+    if (btnSaveTimesheet) {
+      btnSaveTimesheet.addEventListener('click', saveTimesheetToDB);
+    }
+    const btnSaveTimesheetTop = document.getElementById('btnSaveTimesheetTop');
+    if (btnSaveTimesheetTop) {
+      btnSaveTimesheetTop.addEventListener('click', saveTimesheetToDB);
+    }
+
+    // Wire up back button
+    const btnBack = document.getElementById('btnBack');
+    if (btnBack) {
+      btnBack.addEventListener('click', () => {
+        // Navigate back to home page
+        window.location.href = '../index.html';
+      });
+    }
+
+    // Get location on page load
+    if (window.getUserLocation) {
+      window.getUserLocation().catch(() => { });
+    }
+  </script>
+
+  <!-- User Profile Sidebar -->
+  <aside id="user-profile-sidebar" class="profile-sidebar">
+    <div class="sidebar-minimal" id="sidebarMinimal">
+      <div class="sidebar-avatar" id="sidebarAvatar">
+        <div class="avatar-placeholder" id="avatarPlaceholder">U</div>
+      </div>
+      <div class="sidebar-name" id="sidebarNameMinimal">User</div>
+      <button class="sidebar-toggle" id="sidebarToggle" title="Open menu">
+        <span class="dropdown-arrow">▼</span>
+      </button>
+    </div>
+    <div class="sidebar-expanded" id="sidebarExpanded">
+      <div class="sidebar-header">
+        <h3>Profile</h3>
+        <button class="sidebar-close" id="sidebarClose" title="Collapse">✕</button>
+      </div>
+      <div class="sidebar-content">
+        <!-- User Profile Header -->
+        <div class="profile-header-section">
+          <div class="profile-avatar-large" id="avatarLarge">
+            <div class="avatar-placeholder-large" id="avatarPlaceholderLarge">U</div>
+          </div>
+          <div class="profile-header-info">
+            <div class="profile-name" id="profileName">-</div>
+            <div class="profile-email" id="profileEmail">-</div>
+          </div>
+        </div>
+
+        <!-- Menu Items -->
+        <div class="menu-section">
+          <button class="menu-item" id="menuProfileManagement">
+            <span class="menu-icon">👤</span>
+            <span class="menu-text">Profile Management</span>
+            <span class="menu-arrow">▶</span>
+          </button>
+          <button class="menu-item" id="menuTimesheetManagement">
+            <span class="menu-icon">📋</span>
+            <span class="menu-text">Timesheet Management</span>
+            <span class="menu-arrow">▶</span>
+          </button>
+        </div>
+
+        <!-- Profile Management Submenu -->
+        <div class="submenu-section" id="submenuProfile" style="display:none">
+          <div class="submenu-header">
+            <button class="submenu-back" id="backFromProfile">← Back</button>
+            <h4>Profile Management</h4>
+          </div>
+          <div class="submenu-content">
+            <div class="profile-info">
+              <div class="info-item">
+                <span class="info-label">Name:</span>
+                <span class="info-value" id="profileNameDetail">-</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Email:</span>
+                <span class="info-value" id="profileEmailDetail">-</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Last Login:</span>
+                <span class="info-value" id="profileLastLogin">-</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Role:</span>
+                <span class="info-value" id="profileRole">-</span>
+              </div>
+            </div>
+            <div class="company-section" id="companySection">
+              <h4>🏢 Company Info</h4>
+              <div class="info-item">
+                <span class="info-label">Company:</span>
+                <span class="info-value" id="profileCompany">-</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Employee ID:</span>
+                <span class="info-value" id="profileEmpId">-</span>
+              </div>
+            </div>
+            <button class="btn-edit-profile" id="btnEditProfile">Edit Profile</button>
+          </div>
+        </div>
+
+        <!-- Timesheet Management Submenu -->
+        <div class="submenu-section" id="submenuTimesheet" style="display:none">
+          <div class="submenu-header">
+            <button class="submenu-back" id="backFromTimesheet">← Back</button>
+            <h4>Timesheet Management</h4>
+          </div>
+          <div class="submenu-content">
+            <div class="stats-section">
+              <h4>📊 Timesheet Stats</h4>
+              <div class="stats-grid">
+                <div class="stat-item">
+                  <span class="stat-label">Saved</span>
+                  <span class="stat-value" id="statSaved">0</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">Last Export</span>
+                  <span class="stat-value" id="statLastExport">-</span>
+                </div>
+              </div>
+            </div>
+            <div class="saved-timesheets-section">
+              <h4>💾 Saved Timesheets</h4>
+              <button class="btn-save-timesheet" id="btnSaveTimesheet">Save Current Timesheet</button>
+              <div class="timesheets-list" id="timesheetsList">
+                <div class="empty-state">No saved timesheets</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <style>
+    .profile-sidebar {
+      position: fixed;
+      right: 0;
+      top: 0;
+      height: 100vh;
+      z-index: 1000;
+      background: #fff;
+      box-shadow: -2px 0 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .sidebar-minimal {
+      width: 80px;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px 8px;
+      background: linear-gradient(180deg, #06b6d4 0%, #10B981 100%);
+      color: #fff;
+      box-shadow: -2px 0 8px rgba(6, 182, 212, 0.2);
+      position: relative;
+      z-index: 1001;
+      transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .sidebar-avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      overflow: hidden;
+      margin-bottom: 8px;
+      background: rgba(255, 255, 255, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .avatar-placeholder {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 20px;
+    }
+
+    .sidebar-name {
+      font-size: 11px;
+      text-align: center;
+      margin-bottom: 12px;
+      word-break: break-word;
+      max-width: 100%;
+    }
+
+    .sidebar-toggle {
+      background: rgba(255, 255, 255, 0.2);
+      border: none;
+      color: #fff;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 12px;
+      transition: background 0.2s;
+    }
+
+    .sidebar-toggle:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    .dropdown-arrow {
+      font-size: 10px;
+      transition: transform 0.3s ease;
+    }
+
+    .sidebar-expanded.show~.sidebar-minimal .dropdown-arrow,
+    .sidebar-minimal:hover .dropdown-arrow {
+      transform: rotate(180deg);
+    }
+
+    .sidebar-expanded {
+      width: 320px;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      background: #fff;
+      overflow-y: auto;
+      position: fixed;
+      right: 0;
+      top: 0;
+      transform: translateX(100%);
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 1002;
+      box-shadow: -2px 0 20px rgba(0, 0, 0, 0.15);
+    }
+
+    .sidebar-expanded.show {
+      transform: translateX(0);
+    }
+
+    .sidebar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .sidebar-header h3 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .sidebar-close {
+      background: none;
+      border: none;
+      font-size: 20px;
+      cursor: pointer;
+      color: #6b7280;
+      padding: 4px;
+    }
+
+    .sidebar-close:hover {
+      color: #111827;
+    }
+
+    /* Hide profile sidebar */
+    #user-profile-sidebar {
+      display: none !important;
+    }
+
+    .sidebar-content {
+      padding: 0;
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    /* Profile Header Section */
+    .profile-header-section {
+      padding: 20px 16px;
+      background: linear-gradient(180deg, #06b6d4 0%, #10B981 100%);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .profile-header-info {
+      flex: 1;
+    }
+
+    .profile-name {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .profile-email {
+      font-size: 12px;
+      opacity: 0.9;
+    }
+
+    /* Menu Section */
+    .menu-section {
+      padding: 8px 0;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .menu-item {
+      width: 100%;
+      padding: 12px 16px;
+      background: none;
+      border: none;
+      text-align: left;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      transition: background 0.2s;
+      color: #111827;
+    }
+
+    .menu-item:hover {
+      background: #f3f4f6;
+    }
+
+    .menu-icon {
+      font-size: 18px;
+      width: 24px;
+      text-align: center;
+    }
+
+    .menu-text {
+      flex: 1;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .menu-arrow {
+      font-size: 12px;
+      color: #6b7280;
+    }
+
+    /* User status pill */
+    #userStatus span.status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    /* Logout button styling */
+    #userStatus .logout-btn {
+      margin-left: 8px;
+      padding: 4px 10px;
+      background: #ef4444;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      transition: background 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    #userStatus .logout-btn:hover {
+      background: #dc2626;
+    }
+
+    #userStatus .logout-btn:active {
+      background: #b91c1c;
+    }
+
+    /* Back button styling */
+    .btn-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      background: #fff;
+      color: #374151;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+
+    .btn-back:hover {
+      background: #f9fafb;
+      border-color: #9ca3af;
+      color: #111827;
+    }
+
+    .btn-back:active {
+      background: #f3f4f6;
+      transform: scale(0.98);
+    }
+
+    /* Controls row spacing */
+    .controls-inline {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      row-gap: 12px;
+      align-items: center;
+    }
+
+    .controls-inline .month-nav {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: nowrap;
+    }
+
+    .controls-inline button,
+    .controls-inline select {
+      flex-shrink: 0;
+    }
+
+    /* Submenu Section */
+    .submenu-section {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: #fff;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .submenu-header {
+      padding: 16px;
+      border-bottom: 1px solid #e5e7eb;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .submenu-header h4 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .submenu-back {
+      background: none;
+      border: none;
+      color: #06b6d4;
+      cursor: pointer;
+      font-size: 14px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      transition: background 0.2s;
+    }
+
+    .submenu-back:hover {
+      background: #f3f4f6;
+    }
+
+    .submenu-content {
+      padding: 16px;
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .profile-section {
+      margin-bottom: 24px;
+    }
+
+    .profile-avatar-large {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .avatar-placeholder-large {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 24px;
+      color: #fff;
+    }
+
+    .profile-info {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .info-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #f3f4f6;
+    }
+
+    .info-label {
+      font-weight: 500;
+      color: #6b7280;
+      font-size: 13px;
+    }
+
+    .info-value {
+      color: #111827;
+      font-size: 13px;
+      text-align: right;
+    }
+
+    .stats-section,
+    .company-section,
+    .saved-timesheets-section {
+      margin-bottom: 24px;
+      padding-top: 16px;
+      border-top: 1px solid #e5e7eb;
+    }
+
+    .stats-section h4,
+    .company-section h4,
+    .saved-timesheets-section h4 {
+      margin: 0 0 12px 0;
+      font-size: 14px;
+      font-weight: 600;
+      color: #111827;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .stat-item {
+      background: #f9fafb;
+      padding: 12px;
+      border-radius: 8px;
+      text-align: center;
+    }
+
+    .stat-label {
+      display: block;
+      font-size: 11px;
+      color: #6b7280;
+      margin-bottom: 4px;
+    }
+
+    .stat-value {
+      display: block;
+      font-size: 18px;
+      font-weight: 600;
+      color: #111827;
+    }
+
+    .btn-save-timesheet {
+      width: 100%;
+      padding: 10px;
+      background: #06b6d4;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-weight: 500;
+      cursor: pointer;
+      margin-bottom: 12px;
+      transition: background 0.2s;
+    }
+
+    .btn-save-timesheet:hover {
+      background: #0891b2;
+    }
+
+    .timesheets-list {
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .timesheet-item {
+      padding: 8px;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .timesheet-item:hover {
+      background: #f9fafb;
+    }
+
+    .timesheet-item-header {
+      font-weight: 500;
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+
+    .timesheet-item-meta {
+      font-size: 11px;
+      color: #6b7280;
+    }
+
+    .empty-state {
+      text-align: center;
+      color: #9ca3af;
+      font-size: 13px;
+      padding: 16px;
+    }
+  </style>
+</body>
+
+</html>
