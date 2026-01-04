@@ -68,6 +68,7 @@
             e.stopPropagation();
             try {
               await signOut(auth);
+              window.location.replace('/landing/index.html');
             } catch (err) {
               console.error('Logout error:', err);
               if (typeof showToast === 'function') {
