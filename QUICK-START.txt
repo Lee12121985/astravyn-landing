@@ -1,0 +1,67 @@
+# Quick Start Guide - Admin Local Testing
+
+## Setup (One-time only)
+
+1. **Right-click `setup-hosts.bat` → Run as administrator**
+   - This adds subdomain entries to Windows hosts file
+
+## Every Development Session
+
+### Terminal 1: Firebase Emulators
+```powershell
+firebase emulators:start --project astravyn-landing
+```
+Keep open. Wait for: `Web Emulator logging to http://localhost:4000`
+
+### Terminal 2: Proxy Server (as Administrator)
+```powershell
+node proxy-server.js
+```
+Keep open. Should show proxy URLs.
+
+### Browser: Access Admin
+```
+http://admin.astravyn.local/admin/landing.html
+```
+
+## Local URLs
+
+```
+Admin Pages:
+  Landing   → http://admin.astravyn.local/admin/landing.html
+  Login     → http://admin.astravyn.local/admin/login.html
+  Hub       → http://admin.astravyn.local/admin/hub.html
+  Dashboard → http://admin.astravyn.local/admin/dashboard.html
+
+App Pages:
+  Landing   → http://landing.astravyn.local/landing/index.html
+  Timesheet → http://time.astravyn.local/timesheet/index.html
+  Dating    → http://dating.astravyn.local/dating/index.html
+  Studio    → http://studio.astravyn.local/studio/index.html
+
+Emulator UIs:
+  Auth UI     → http://localhost:4000 (create test users)
+  Firestore   → http://localhost:4000 (view/edit database)
+  Hosting     → http://localhost:5000 (files being served)
+```
+
+## Test Admin Login
+
+1. Open http://localhost:4000
+2. Go to "Authentication" tab
+3. Create test user (email: `admin@test.com`, password: `test123`)
+4. Copy the User ID
+5. Go to "Firestore" tab
+6. Create collection `users` → document `{uid}`
+7. Add field: `role` = `admin`
+8. Go to http://admin.astravyn.local/admin/login.html
+9. Sign in with test user
+10. If admin role found → redirects to hub
+
+## Stop Servers
+
+Press `Ctrl+C` in each terminal to stop.
+
+---
+
+**Detailed setup?** See `LOCAL-DEV-SETUP.md`
