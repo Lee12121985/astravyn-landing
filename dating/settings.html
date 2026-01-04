@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Astravyn – Settings</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="/dating/style.css" />
+  <link rel="stylesheet" href="/dating/dating-theme.css" />
+</head>
+
+<body data-page="settings">
+  <div class="page-wrapper">
+    <header class="dating-nav">
+      <div class="dating-nav-inner">
+        <div class="brand">
+          <div class="brand-logo">A</div>
+          <div class="brand-text">
+            <span class="brand-text-main">Astravyn Match</span>
+            <span class="brand-text-sub">Dating & Matrimony</span>
+          </div>
+        </div>
+        <nav class="nav-links">
+          <a href="/dating/index.html" data-nav="home">Home</a>
+          <a href="/dating/matches.html" data-nav="matches">Matches</a>
+          <a href="/dating/search.html" data-nav="search">Search</a>
+          <a href="/dating/profile.html" data-nav="profile">Profile</a>
+          <a href="/dating/settings.html" data-nav="settings">Settings</a>
+        </nav>
+        <div class="nav-avatar" id="nav-user">
+          <div class="nav-avatar-initial">LC</div>
+          <div class="nav-avatar-name">You</div>
+        </div>
+      </div>
+    </header>
+
+    <main class="main">
+      <div class="container">
+        <section>
+          <div class="section-header">
+            <div>
+              <h1 class="section-title">Settings & privacy</h1>
+              <p class="section-subtitle">
+                Control who can see you, how you are notified and account security.
+              </p>
+            </div>
+            <span class="chip">Private by default</span>
+          </div>
+
+          <div class="settings-grid">
+            <div class="card card-soft">
+              <div class="profile-section-title">Appearance</div>
+              <div class="settings-list" style="margin-bottom:2rem;">
+                <div class="settings-item">
+                  <div>
+                    <div class="settings-item-main">Dark Mode (Neon)</div>
+                    <div class="settings-item-sub">Switch between the immersive Neon theme and Light mode.</div>
+                  </div>
+                  <label class="toggle">
+                    <input type="checkbox" id="st-theme-toggle" checked />
+                    <span class="toggle-slider"></span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="profile-section-title">Notifications</div>
+              <div class="settings-list">
+                <div class="settings-item">
+                  <div>
+                    <div class="settings-item-main">Match suggestions</div>
+                    <div class="settings-item-sub">Get alerts when new matches are found.</div>
+                  </div>
+                  <label class="toggle">
+                    <input type="checkbox" id="st-match-notif" checked />
+                    <span class="toggle-slider"></span>
+                  </label>
+                </div>
+
+                <div class="settings-item">
+                  <div>
+                    <div class="settings-item-main">New messages</div>
+                    <div class="settings-item-sub">Notify when someone sends you a message.</div>
+                  </div>
+                  <label class="toggle">
+                    <input type="checkbox" id="st-msg-notif" checked />
+                    <span class="toggle-slider"></span>
+                  </label>
+                </div>
+
+                <div class="settings-item">
+                  <div>
+                    <div class="settings-item-main">Profile views</div>
+                    <div class="settings-item-sub">Let you know who viewed your profile.</div>
+                  </div>
+                  <label class="toggle">
+                    <input type="checkbox" id="st-view-notif" />
+                    <span class="toggle-slider"></span>
+                  </label>
+                </div>
+              </div>
+
+              <div style="margin-top:1.1rem;">
+                <div class="profile-section-title">Privacy</div>
+                <div class="settings-list">
+                  <div class="settings-item">
+                    <div>
+                      <div class="settings-item-main">Show full name</div>
+                      <div class="settings-item-sub">Otherwise only first name & initial shown.</div>
+                    </div>
+                    <label class="toggle">
+                      <input type="checkbox" id="st-show-name" />
+                      <span class="toggle-slider"></span>
+                    </label>
+                  </div>
+
+                  <div class="settings-item">
+                    <div>
+                      <div class="settings-item-main">Allow screenshot protection</div>
+                      <div class="settings-item-sub">Warn if someone attempts screenshots (supported devices).</div>
+                    </div>
+                    <label class="toggle">
+                      <input type="checkbox" id="st-screen-prot" checked />
+                      <span class="toggle-slider"></span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <aside class="card danger-card">
+              <div class="profile-section-title">Account & security</div>
+              <p class="section-subtitle" style="margin-bottom:1rem;">
+                These options impact your visibility and access to your Astravyn account.
+              </p>
+
+              <div style="display:flex; flex-direction:column; gap:0.8rem;">
+                <button class="btn btn-ghost" type="button" style="justify-content:center;">
+                  Change Password
+                </button>
+                <button class="btn btn-ghost" type="button" style="justify-content:center;">
+                  Download Data
+                </button>
+              </div>
+
+              <button class="btn" type="button"
+                style="width:100%;justify-content:center;background:var(--danger);color:white;box-shadow:none; margin-top:0.8rem;">
+                Deactivate Profile
+              </button>
+
+              <p style="font-size:.75rem;color:var(--text-soft);margin-top:1rem;">
+                Deactivating will hide your profile from searches and matches.
+                You can reactivate anytime by logging in again.
+              </p>
+            </aside>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <footer class="footer">
+      Your privacy is our priority. We never share contact details without consent.
+    </footer>
+  </div>
+  <script type="module" src="/dating/user-context.js"></script>
+  <script type="module" src="/dating/firebase-helpers.js"></script>
+  <script type="module" src="/dating/app.js"></script>
+</body>
+
+</html>

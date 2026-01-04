@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Astravyn – Create Account</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at top, #1a2950 0, #020615 55%, #000 100%);
+      color: #fff;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 420px;
+      background: rgba(5, 12, 30, 0.96);
+      border-radius: 24px;
+      padding: 32px 32px 24px;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.75);
+      border: 1px solid rgba(120, 162, 255, 0.25);
+    }
+
+    .brand {
+      text-align: center;
+      margin-bottom: 8px;
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+    }
+
+    .subtitle {
+      text-align: center;
+      margin-bottom: 24px;
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      margin-bottom: 6px;
+      color: #cdd8ff;
+    }
+
+    .input {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid rgba(112, 128, 255, 0.5);
+      background: rgba(10, 16, 40, 0.9);
+      color: #fff;
+      font-size: 14px;
+      outline: none;
+      transition: border 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+      margin-bottom: 14px;
+    }
+
+    .input::placeholder {
+      color: #6f7bb5;
+    }
+
+    .input:focus {
+      border-color: #4f8cff;
+      box-shadow: 0 0 0 1px rgba(79, 140, 255, 0.5);
+      background: rgba(14, 21, 54, 0.98);
+    }
+
+    .btn {
+      width: 100%;
+      margin-top: 4px;
+      padding: 12px 16px;
+      border-radius: 999px;
+      border: none;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      background: linear-gradient(135deg, #1e90ff, #3bb3ff);
+      color: #fff;
+      box-shadow: 0 12px 30px rgba(0, 153, 255, 0.5);
+      transition: transform 0.1s ease, box-shadow 0.1s ease, opacity 0.15s ease;
+    }
+
+    .btn:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 15px 35px rgba(0, 153, 255, 0.6);
+    }
+
+    .btn:active:not(:disabled) {
+      transform: translateY(0);
+      box-shadow: 0 10px 25px rgba(0, 153, 255, 0.4);
+    }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: default;
+      box-shadow: none;
+    }
+
+    .feedback {
+      margin-top: 10px;
+      font-size: 13px;
+      text-align: center;
+      min-height: 18px;
+    }
+
+    .feedback.error {
+      color: #ff6b88;
+    }
+
+    .feedback.success {
+      color: #52ffa3;
+    }
+
+    .hint-row {
+      margin-top: 12px;
+      font-size: 13px;
+      text-align: center;
+      color: #9ba4d9;
+    }
+
+    .hint-row a {
+      color: #4f8cff;
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .hint-row a:hover {
+      text-decoration: underline;
+    }
+
+    .back-link {
+      margin-top: 6px;
+      font-size: 13px;
+      text-align: center;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="card">
+    <div class="brand">Astravyn</div>
+    <div class="subtitle">Create Account</div>
+
+    <form id="signup-form">
+      <label for="name">Full Name</label>
+      <input id="name" class="input" type="text" placeholder="Your name" required />
+
+      <label for="email">Email</label>
+      <input id="email" class="input" type="email" placeholder="you@example.com" required />
+
+      <label for="password">Password</label>
+      <input id="password" class="input" type="password" placeholder="••••••••" required />
+
+
+
+      <button id="signup-btn" class="btn" type="submit">
+        Sign Up
+      </button>
+    </form>
+
+    <p id="signup-feedback" class="feedback"></p>
+
+    <p class="hint-row">
+      Already have an account?
+      <a href="../login/index.html">Sign In</a>
+    </p>
+    <p class="back-link">
+      <a href="../index.html" style="color:#6f7bb5;text-decoration:none;">Back to Home</a>
+    </p>
+  </div>
+
+  <!-- Firebase Signup Logic -->
+  <script type="module">
+    import { auth, db, storage } from '../js/firebase-config.js';
+    import { createUserWithEmailAndPassword, updateProfile } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+    import { doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+    import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
+
+    const form = document.getElementById("signup-form");
+    const btn = document.getElementById("signup-btn");
+    const feedback = document.getElementById("signup-feedback");
+
+    function showMessage(message, type = "error") {
+      feedback.textContent = message;
+      feedback.classList.remove("error", "success");
+      if (type === "success") {
+        feedback.classList.add("success");
+      } else {
+        feedback.classList.add("error");
+      }
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const name = document.getElementById("name").value.trim();
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value;
+      const file = null;
+
+      if (!name || !email || !password) {
+        showMessage("Please fill in all fields.");
+        return;
+      }
+
+      if (password.length < 6) {
+        showMessage("Password must be at least 6 characters.");
+        return;
+      }
+
+      btn.disabled = true;
+      const originalText = btn.textContent;
+      btn.textContent = "Creating account…";
+      showMessage(""); // clear
+
+      try {
+        // 1. Create Auth User
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+        console.log("Signup success:", user);
+
+        let photoURL = "";
+        let storagePath = "";
+
+        // Update Auth Profile (Name only)
+        await updateProfile(user, { displayName: name });
+
+        // 2. Upload Photo if selected
+        if (file) {
+
+          try {
+            showMessage("Uploading photo...", "success"); // Intermediate status
+            // Use timestamp to ensure unique filename
+            storagePath = `datingProfiles/${user.uid}/${Date.now()}_${file.name}`;
+            const storageRef = ref(storage, storagePath);
+
+            const snapshot = await uploadBytes(storageRef, file);
+            photoURL = await getDownloadURL(snapshot.ref);
+
+            // Update Auth Profile
+            await updateProfile(user, { displayName: name, photoURL: photoURL });
+          } catch (uploadErr) {
+            console.error("Photo upload failed:", uploadErr);
+            // Non-blocking, continue with signup
+          }
+        }
+
+
+        // 3. Create Firestore Document
+        const role = (email === "admin@astravyn.com") ? "admin" : "user";
+        try {
+          // Add to 'users' collection (Private Account Data)
+          await setDoc(doc(db, "users", user.uid), {
+            uid: user.uid,
+            email: user.email,
+            role: role,
+            accountStatus: 'active', // 'active', 'suspended', 'deleted'
+            isPremium: false,
+            profileId: user.uid,
+            createdAt: serverTimestamp(),
+            lastLogin: serverTimestamp()
+            // Removed displayName/photoURL to keep this collection private/lean
+          });
+
+          // Create 'profiles' document (Public Searchable Data)
+          try {
+            const photoEntry = photoURL ? [{
+              url: photoURL,
+              path: storagePath,
+              caption: 'Profile Photo'
+            }] : [];
+
+            await setDoc(doc(db, "datingProfiles", user.uid), {
+              userId: user.uid,
+              displayName: name,
+              photoURL: photoURL,
+              // Basic Info Defaults
+              gender: null, // "male", "female", "other"
+              dob: null,
+              age: null,
+              height: null,
+              // Location Defaults
+              city: "Unknown",
+              country: "Unknown",
+              // Details Defaults
+              religion: null,
+              profession: "",
+              incomeRange: null,
+              maritalStatus: "single",
+              // Meta
+              bio: "New to Astravyn.",
+              interests: [],
+              gallery: photoEntry, // Renamed from photos to match schema or keep consistent? Schema said 'gallery'.
+              completeness: 20,
+              visibility: 'public', // 'public', 'private'
+              createdAt: serverTimestamp()
+            }, { merge: true });
+
+          } catch (dpErr) { console.warn("Profile creation error", dpErr); }
+
+        } catch (dbError) {
+          console.error("Error creating user document:", dbError);
+        }
+
+        showMessage("Account created! Redirecting to sign in…", "success");
+
+        setTimeout(() => {
+          window.location.href = "../login/index.html";
+        }, 1200);
+      } catch (error) {
+        console.error("Signup Error:", error);
+        switch (error.code) {
+          case "auth/email-already-in-use":
+            showMessage("An account with this email already exists. Please sign in instead.");
+            break;
+          case "auth/invalid-email":
+            showMessage("That email address looks invalid. Please check and try again.");
+            break;
+          case "auth/weak-password":
+            showMessage("Password is too weak. Try something a bit stronger.");
+            break;
+          default:
+            showMessage("Something went wrong: " + error.message);
+            break;
+        }
+      } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+      }
+    });
+  </script>
+</body>
+
+</html>

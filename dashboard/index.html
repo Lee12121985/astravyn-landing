@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Astravyn – Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at top, #1a2950 0, #020615 55%, #000 100%);
+      color: #fff;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 560px;
+      background: rgba(5, 12, 30, 0.96);
+      border-radius: 24px;
+      padding: 28px 28px 24px;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.75);
+      border: 1px solid rgba(120, 162, 255, 0.25);
+    }
+
+    .brand {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #cfd6ff;
+      margin-bottom: 6px;
+      text-align: center;
+    }
+
+    .title {
+      font-size: 20px;
+      font-weight: 600;
+      text-align: center;
+      margin-bottom: 18px;
+    }
+
+    .welcome {
+      text-align: center;
+      font-size: 14px;
+      color: #a6b0e5;
+      margin-bottom: 20px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: rgba(27, 49, 120, 0.85);
+      font-size: 12px;
+    }
+
+    .pill-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: #52ffa3;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .tile {
+      padding: 14px;
+      border-radius: 16px;
+      background: radial-gradient(circle at top left, rgba(61, 126, 255, 0.35), rgba(10, 16, 40, 0.95));
+      border: 1px solid rgba(96, 128, 255, 0.35);
+      font-size: 13px;
+    }
+
+    .tile-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .tile-desc {
+      font-size: 12px;
+      color: #b2b8e0;
+    }
+
+    .buttons {
+      margin-top: 8px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+    }
+
+    .btn {
+      padding: 10px 18px;
+      border-radius: 999px;
+      border: none;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.1s ease, box-shadow 0.1s ease, opacity 0.15s ease;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #1e90ff, #3bb3ff);
+      color: #fff;
+      box-shadow: 0 12px 30px rgba(0, 153, 255, 0.5);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 15px 35px rgba(0, 153, 255, 0.6);
+    }
+
+    .btn-secondary {
+      background: rgba(18, 26, 66, 0.95);
+      color: #d0d6ff;
+      border: 1px solid rgba(122, 138, 255, 0.6);
+    }
+
+    .btn-secondary:hover {
+      transform: translateY(-1px);
+    }
+
+    .meta {
+      margin-top: 10px;
+      font-size: 12px;
+      text-align: center;
+      color: #848dc4;
+    }
+
+    .user-email {
+      font-weight: 600;
+      color: #e4e7ff;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand">Astravyn</div>
+    <div class="title">AI Studio Dashboard</div>
+
+    <div class="welcome">
+      <span class="pill">
+        <span class="pill-dot"></span>
+        Signed in as <span id="user-email" class="user-email">loading…</span>
+      </span>
+    </div>
+
+    <div class="grid">
+      <div class="tile">
+        <div class="tile-title">AI Video Lab</div>
+        <div class="tile-desc">
+          Generate and edit videos with Astravyn’s AI tools. Perfect for quick tests and experiments.
+        </div>
+      </div>
+      <div class="tile">
+        <div class="tile-title">My Workspace</div>
+        <div class="tile-desc">
+          All your upcoming features – projects, timelines, analytics – will appear here soon.
+        </div>
+      </div>
+    </div>
+
+    <div class="buttons">
+      <button class="btn btn-primary" id="open-studio-btn">
+        Open AI Studio
+      </button>
+      <button class="btn btn-secondary" id="logout-btn">
+        Log Out
+      </button>
+    </div>
+
+    <div class="meta" id="dashboard-status"></div>
+  </div>
+
+  <!-- Firebase Dashboard Logic -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
+
+    // 🔹 SAME CONFIG YOU ALREADY USE
+    const firebaseConfig = {
+      apiKey: "AIzaSyDPljICCsPxIH9TtNYJ9VvIg6YvYwPis3E",
+      authDomain: "astravyn-landing.firebaseapp.com",
+      projectId: "astravyn-landing",
+      storageBucket: "astravyn-landing.firebasestorage.app",
+      messagingSenderId: "90590064470",
+      appId: "1:90590064470:web:740aa9cd5213ac9f50f0f7",
+      measurementId: "G-DV0M3HKV6B"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+
+    const emailEl = document.getElementById("user-email");
+    const statusEl = document.getElementById("dashboard-status");
+    const logoutBtn = document.getElementById("logout-btn");
+    const openStudioBtn = document.getElementById("open-studio-btn");
+
+    function setStatus(msg) {
+      statusEl.textContent = msg || "";
+    }
+
+    // 🔐 PROTECT THIS PAGE: only logged-in users can see it
+    onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        // Not logged in → back to login
+        window.location.href = "/astravyn-landing/login/index.html";
+      } else {
+        emailEl.textContent = user.email || "Unknown user";
+        setStatus("Session active. Enjoy exploring Astravyn.");
+      }
+    });
+
+    logoutBtn.addEventListener("click", async () => {
+      setStatus("Signing you out…");
+      try {
+        await signOut(auth);
+        window.location.href = "/astravyn-landing/login/index.html";
+      } catch (err) {
+        console.error("Logout error", err);
+        setStatus("Could not sign you out. Please try again.");
+      }
+    });
+
+    // 🔁 For now, just go back to home or another page
+    openStudioBtn.addEventListener("click", () => {
+      // Change this path to your real AI studio page when it’s ready
+      window.location.href = "/astravyn-landing/index.html";
+    });
+  </script>
+</body>
+</html>

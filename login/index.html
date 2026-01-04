@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Astravyn – Sign In</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at top, #1a2950 0, #020615 55%, #000 100%);
+      color: #fff;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 460px;
+      background: rgba(5, 12, 30, 0.96);
+      border-radius: 26px;
+      padding: 34px 34px 26px;
+      box-shadow: 0 25px 70px rgba(0, 0, 0, 0.8);
+      border: 1px solid rgba(120, 162, 255, 0.35);
+    }
+
+    .brand {
+      text-align: center;
+      margin-bottom: 6px;
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+    }
+
+    .subtitle-main {
+      text-align: center;
+      margin-bottom: 4px;
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .subtitle-text {
+      text-align: center;
+      margin-bottom: 22px;
+      font-size: 13px;
+      color: #9ca3ff;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      margin-bottom: 6px;
+      color: #cdd8ff;
+    }
+
+    .input {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid rgba(112, 128, 255, 0.5);
+      background: rgba(10, 16, 40, 0.9);
+      color: #fff;
+      font-size: 14px;
+      outline: none;
+      transition: border 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+      margin-bottom: 14px;
+    }
+
+    .input::placeholder {
+      color: #6f7bb5;
+    }
+
+    .input:focus {
+      border-color: #4f8cff;
+      box-shadow: 0 0 0 1px rgba(79, 140, 255, 0.5);
+      background: rgba(14, 21, 54, 0.98);
+    }
+
+    .btn {
+      width: 100%;
+      margin-top: 4px;
+      padding: 12px 16px;
+      border-radius: 999px;
+      border: none;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      background: linear-gradient(135deg, #1e90ff, #3bb3ff);
+      color: #fff;
+      box-shadow: 0 12px 30px rgba(0, 153, 255, 0.5);
+      transition: transform 0.1s ease, box-shadow 0.1s ease, opacity 0.15s ease;
+    }
+
+    .btn:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 15px 35px rgba(0, 153, 255, 0.6);
+    }
+
+    .btn:active:not(:disabled) {
+      transform: translateY(0);
+      box-shadow: 0 10px 25px rgba(0, 153, 255, 0.4);
+    }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: default;
+      box-shadow: none;
+    }
+
+    .feedback {
+      margin-top: 10px;
+      font-size: 13px;
+      text-align: center;
+      min-height: 18px;
+    }
+
+    .feedback.error {
+      color: #ff6b88;
+    }
+
+    .feedback.success {
+      color: #52ffa3;
+    }
+
+    .hint-row {
+      margin-top: 12px;
+      font-size: 13px;
+      text-align: center;
+      color: #9ba4d9;
+    }
+
+    .hint-row a {
+      color: #4f8cff;
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .hint-row a:hover {
+      text-decoration: underline;
+    }
+
+    .back-link {
+      margin-top: 6px;
+      font-size: 13px;
+      text-align: center;
+    }
+
+    .back-link a {
+      color: #6f7bb5;
+      text-decoration: none;
+    }
+
+    .back-link a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="card">
+    <div class="brand">Astravyn</div>
+    <div class="subtitle-main">Welcome Back</div>
+    <div class="subtitle-text">Sign in to your Astravyn account.</div>
+
+    <form id="login-form">
+      <label for="login-email">Email</label>
+      <input id="login-email" class="input" type="email" placeholder="you@example.com" required />
+
+      <label for="login-password">Password</label>
+      <input id="login-password" class="input" type="password" placeholder="••••••••" required />
+
+      <button id="login-btn" class="btn" type="submit">
+        Sign In
+      </button>
+    </form>
+
+    <p id="login-feedback" class="feedback"></p>
+
+    <p class="hint-row">
+      Don’t have an account yet?
+      <a href="../signup/index.html">Create one</a>
+    </p>
+    <p class="back-link">
+      <a href="../index.html">Back to Home</a>
+    </p>
+  </div>
+
+  <!-- Firebase Login Logic -->
+  <script type="module">
+    // After successful login or if already logged-in, go here:
+    const REDIRECT_URL = "../index.html";
+
+    import { auth } from "../js/firebase-config.js";
+    import {
+      signInWithEmailAndPassword,
+      signOut,
+      onAuthStateChanged
+    } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+    import {
+      getUserData,
+      updateLastLogin
+    } from "../js/userData.js";
+
+    const form = document.getElementById("login-form");
+    const btn = document.getElementById("login-btn");
+    const feedback = document.getElementById("login-feedback");
+    const emailInput = document.getElementById("login-email");
+    const passwordInput = document.getElementById("login-password");
+
+    function showMessage(message, type = "error") {
+      feedback.textContent = message;
+      feedback.classList.remove("error", "success");
+      if (!message) return;
+      if (type === "success") {
+        feedback.classList.add("success");
+      } else {
+        feedback.classList.add("error");
+      }
+    }
+
+    // 🔁 If user is already logged in and not blocked,
+    // visiting /login should immediately go to home
+    onAuthStateChanged(auth, async (user) => {
+      // Only run this redirect logic if we are actually on the login page
+      // to avoid interference if this script is somehow loaded elsewhere (unlikely but safe)
+      if (!window.location.pathname.includes('/login/') && !window.location.pathname.endsWith('login/index.html')) {
+        return;
+      }
+
+      if (!user) return; // not logged in → show form
+
+      try {
+        let data = null;
+        try {
+          data = await getUserData(user.uid);
+        } catch (err) {
+          console.error("getUserData in onAuthStateChanged failed:", err);
+        }
+
+        if (data && data.isBlocked) {
+          await signOut(auth);
+          showMessage("Your account has been blocked. Please contact support.");
+          return;
+        }
+
+        // Already signed in → go to home
+        const lastRedirect = sessionStorage.getItem('redirect_to_home');
+        const now = Date.now();
+        if (lastRedirect && (now - parseInt(lastRedirect, 10) < 2000)) {
+          console.warn('Redirect loop to home detected.');
+          // Just stay on login page if looping, or maybe show a message
+          // But better to let them manually click "Back to Home"
+          return;
+        }
+
+        sessionStorage.setItem('redirect_to_home', Date.now());
+        window.location.href = REDIRECT_URL;
+      } catch (err) {
+        console.error("Auth state check error:", err);
+        // Fallback: still send to home, since auth is valid
+        window.location.href = REDIRECT_URL;
+      }
+    });
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const email = emailInput.value.trim();
+      const password = passwordInput.value;
+
+      if (!email || !password) {
+        showMessage("Please enter both email and password.");
+        return;
+      }
+
+      btn.disabled = true;
+      const originalText = btn.textContent;
+      btn.textContent = "Signing in…";
+      showMessage("");
+
+      try {
+        // 🟦 AUTH ONLY – if this fails, we show an error
+        const cred = await signInWithEmailAndPassword(auth, email, password);
+        const user = cred.user;
+        console.log("Login success:", user.uid, user.email);
+
+        // 🟦 PROFILE & LAST LOGIN – errors here do NOT cancel login anymore
+        let data = null;
+        try {
+          data = await getUserData(user.uid);
+        } catch (err) {
+          console.error("getUserData failed after login (will still redirect):", err);
+        }
+
+        if (data && data.isBlocked) {
+          await signOut(auth);
+          showMessage("Your account has been blocked. Please contact support.");
+          return;
+        }
+
+        try {
+          if (data) {
+            await updateLastLogin(user.uid);
+          }
+        } catch (err) {
+          console.error("Failed to update lastLogin (will still redirect):", err);
+        }
+
+        showMessage("Signed in! Redirecting…", "success");
+
+        setTimeout(() => {
+          window.location.href = REDIRECT_URL;
+        }, 500);
+      } catch (error) {
+        console.error("Login error:", error);
+        switch (error.code) {
+          case "auth/wrong-password":
+          case "auth/invalid-credential":
+            showMessage("Wrong email or password. Please try again.");
+            break;
+          case "auth/user-not-found":
+            showMessage("No account found with this email. Try signing up first.");
+            break;
+          case "auth/invalid-email":
+            showMessage("That email looks invalid. Please check and try again.");
+            break;
+          case "auth/too-many-requests":
+            showMessage("Too many attempts. Please wait a bit and try again.");
+            break;
+          default:
+            showMessage("Could not sign you in. Please try again.");
+            break;
+        }
+      } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+      }
+    });
+  </script>
+</body>
+
+</html>

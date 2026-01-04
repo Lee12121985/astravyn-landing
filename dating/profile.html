@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <title>Astravyn — Edit Profile</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="/dating/style.css" />
+  <link rel="stylesheet" href="/dating/dating-theme.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+</head>
+
+<body data-page="profile">
+  <div class="page-wrapper">
+    <header class="dating-nav">
+      <div class="dating-nav-inner">
+        <div class="brand">
+          <div class="brand-logo">A</div>
+          <div class="brand-text">
+            <span class="brand-text-main">Astravyn Match</span>
+            <span class="brand-text-sub">Dating & Matrimony</span>
+          </div>
+        </div>
+        <nav class="nav-links">
+          <a href="/dating/index.html" data-nav="home">Home</a>
+          <a href="/dating/matches.html" data-nav="matches">Matches</a>
+          <a href="/dating/search.html" data-nav="search">Search</a>
+          <a href="/dating/profile.html" data-nav="profile">Profile</a>
+          <a href="/dating/settings.html" data-nav="settings">Settings</a>
+        </nav>
+        <div class="nav-avatar" id="nav-user">
+          <div class="nav-avatar-initial">U</div>
+          <div class="nav-avatar-name">You</div>
+        </div>
+      </div>
+    </header>
+
+    <main class="main">
+      <div class="container">
+        <div class="section-header">
+          <div>
+            <h1 class="section-title">My Profile</h1>
+            <p class="section-subtitle">Manage your personal details and photos.</p>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:0.85rem; color:var(--text-muted); margin-bottom:0.4rem;">Profile Completion</div>
+            <div
+              style="width:150px; height:6px; background:rgba(255,255,255,0.1); border-radius:10px; overflow:hidden;">
+              <div style="width:75%; height:100%; background:var(--neon-cyan); box-shadow:0 0 10px var(--neon-cyan);">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-profile">
+          <!-- Left: Form -->
+          <div class="card">
+            <h3 style="margin-bottom:1.5rem; color:white;">Basic Details</h3>
+
+            <form id="profile-editor">
+              <div class="grid grid-2" style="gap: 1rem;">
+                <div class="form-group">
+                  <label class="form-label">Display Name</label>
+                  <input id="displayName" class="form-input" placeholder="e.g. Alex" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Date of Birth</label>
+                  <input id="dob" class="form-input" placeholder="Select Date"
+                    style="background-color: rgba(255,255,255,0.03); background-image: url('data:image/svg+xml;utf8,<svg fill=%22%2394a3b8%22 height=%2216%22 viewBox=%220 0 24 24%22 width=%2216%22 xmlns=%22http://www.w3.org/2000/svg%22><path d=%22M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2zm-7 5h5v5h-5z%22/></svg>'); background-repeat: no-repeat; background-position: right 1rem center; background-size: 1.2rem; cursor: pointer;" />
+                </div>
+                <!-- Automatically calculated age, read-only for display -->
+                <div class="form-group">
+                  <label class="form-label">Age</label>
+                  <input id="age" type="number" class="form-input" min="18" readonly disabled
+                    style="opacity: 0.6; cursor: not-allowed; background: rgba(255,255,255,0.02);" />
+                </div>
+              </div>
+
+              <div class="grid grid-2" style="gap: 1rem; margin-top: 1rem;">
+                <div class="form-group">
+                  <label class="form-label">Height (cm)</label>
+                  <select id="height" class="form-select">
+                    <option value="">Select Height</option>
+                    <option value="150">150 cm (4'11")</option>
+                    <option value="155">155 cm (5'1")</option>
+                    <option value="160">160 cm (5'3")</option>
+                    <option value="165">165 cm (5'5")</option>
+                    <option value="170">170 cm (5'7")</option>
+                    <option value="175">175 cm (5'9")</option>
+                    <option value="180">180 cm (5'11")</option>
+                    <option value="185">185 cm (6'1")</option>
+                    <option value="190">190 cm (6'3")</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Community / Religion (Optional)</label>
+                  <select id="religion" class="form-select">
+                    <option value="">Select</option>
+                    <option value="Hindu">Hindu</option>
+                    <option value="Muslim">Muslim</option>
+                    <option value="Christian">Christian</option>
+                    <option value="Sikh">Sikh</option>
+                    <option value="Jain">Jain</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="grid grid-2" style="gap: 1rem;">
+                <div class="form-group">
+                  <label class="form-label">Gender</label>
+                  <select id="gender" class="form-select">
+                    <option value="">Select</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Non-binary">Non-binary</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Marital Status</label>
+                  <select id="maritalStatus" class="form-select">
+                    <option value="">Select</option>
+                    <option value="Single">Single</option>
+                    <option value="Married">Married</option>
+                    <option value="Divorced">Divorced</option>
+                    <option value="Widowed">Widowed</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Added Education & Community -->
+              <div class="grid grid-2" style="gap: 1rem; margin-top: 1rem;">
+                <div class="form-group">
+                  <label class="form-label">Education</label>
+                  <select id="education" class="form-select">
+                    <option value="">Select</option>
+                    <option value="Bachelors">Bachelors</option>
+                    <option value="Masters">Masters</option>
+                    <option value="PhD">PhD</option>
+                    <option value="Diploma">Diploma</option>
+                    <option value="High School">High School</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Community</label>
+                  <select id="community" class="form-select">
+                    <option value="">Select (Optional)</option>
+                    <option value="Nair">Nair</option>
+                    <option value="Ezhava">Ezhava</option>
+                    <option value="Christian">Christian</option>
+                    <option value="Muslim">Muslim</option>
+                    <option value="Brahmin">Brahmin</option>
+                    <option value="Vishwakarma">Vishwakarma</option>
+                    <option value="SC/ST">SC/ST</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Structured Location -->
+              <div class="grid grid-2" style="gap: 1rem;">
+                <div class="form-group">
+                  <label class="form-label">Nationality</label>
+                  <select id="nationality" class="form-select">
+                    <option value="">Select</option>
+                    <option value="India">India</option>
+                    <option value="USA">USA</option>
+                    <option value="UAE">UAE</option>
+                    <option value="UK">UK</option>
+                    <option value="Canada">Canada</option>
+                    <option value="Australia">Australia</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">State</label>
+                  <select id="state" class="form-select" disabled>
+                    <option value="">Select Nationality First</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="grid grid-2" style="gap: 1rem; margin-top: 1rem;">
+                <div class="form-group">
+                  <label class="form-label">City</label>
+                  <select id="city" class="form-select" disabled>
+                    <option value="">Select State First</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Pincode</label>
+                  <input id="pincode" type="number" class="form-input" placeholder="e.g. 682025" />
+                </div>
+              </div>
+
+              <!-- Hidden Location field for backward compatibility/search normalization -->
+              <input id="location" type="hidden" />
+
+              <div class="grid grid-2" style="gap: 1rem;">
+                <div class="form-group">
+                  <label class="form-label">Profession</label>
+                  <input id="profession" class="form-input" placeholder="e.g. Software Engineer" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Income (Annual)</label>
+                  <select id="income" class="form-select">
+                    <option value="">Select Range</option>
+                    <option value="Below 5L">Below 5L</option>
+                    <option value="5L - 10L">5L - 10L</option>
+                    <option value="10L - 25L">10L - 25L</option>
+                    <option value="25L - 50L">25L - 50L</option>
+                    <option value="Above 50L">Above 50L</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Interests</label>
+                <input id="interests" class="form-input" placeholder="e.g. Hiking, Photography, Reading" />
+              </div>
+
+              <div class="form-group">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                  <label class="form-label" style="margin-bottom: 0;">About Me</label>
+                  <span id="bio-count" style="font-size: 0.8rem; color: var(--text-dim);">0/300</span>
+                </div>
+                <textarea id="bio" class="form-textarea" rows="4" maxlength="300"
+                  placeholder="Share your hobbies, what you are looking for, or something fun about yourself..."
+                  oninput="document.getElementById('bio-count').innerText = this.value.length + '/300'"></textarea>
+              </div>
+
+              <div class="form-group"
+                style="display:flex; align-items:center; gap:0.75rem; background:rgba(255,255,255,0.03); padding:0.8rem; border-radius:var(--radius-md); border:1px solid rgba(255,255,255,0.08);">
+                <input id="isVisible" type="checkbox" style="width:18px; height:18px; accent-color:var(--neon-cyan);">
+                <div>
+                  <span style="font-weight:600; font-size:0.95rem; color:white;">Visible to others</span>
+                  <div style="font-size:0.8rem; color:var(--text-muted);">Allow other users to find your profile.</div>
+                </div>
+              </div>
+
+              <div class="profile-actions-row">
+                <button id="saveProfile" type="button" class="btn btn-primary">Save Changes</button>
+                <p id="save-status"
+                  style="font-size:0.85rem; color:var(--neon-cyan); opacity:0; transition:opacity 0.3s; margin:0;">Saved
+                  successfully!</p>
+              </div>
+            </form>
+          </div>
+
+          <!-- Right: Photos -->
+          <div class="card">
+            <h3 style="margin-bottom:1rem; color:white;">Gallery</h3>
+            <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1.5rem;">
+              Upload high quality photos for better visibility.
+            </p>
+
+            <div id="photo-gallery-grid"
+              style="display:grid; grid-template-columns: repeat(3, 1fr); gap:0.75rem; margin-bottom:1.5rem;">
+              <!-- 5 slots + add button -->
+              <div class="photo-slot"><span style="font-size:1.5rem;color:rgba(255,255,255,0.2);">+</span></div>
+              <div class="photo-slot"><span style="font-size:1.5rem;color:rgba(255,255,255,0.2);">+</span></div>
+              <div class="photo-slot"><span style="font-size:1.5rem;color:rgba(255,255,255,0.2);">+</span></div>
+              <div class="photo-slot"><span style="font-size:1.5rem;color:rgba(255,255,255,0.2);">+</span></div>
+              <div class="photo-slot"><span style="font-size:1.5rem;color:rgba(255,255,255,0.2);">+</span></div>
+              <div class="photo-slot"><span style="font-size:1.5rem;color:rgba(255,255,255,0.2);">+</span></div>
+            </div>
+
+            <div class="photo-upload-actions">
+              <input id="photoFile" type="file" accept="image/*" style="display:none;" />
+              <button id="uploadPhotoBtn" class="btn btn-ghost"
+                style="width:100%; border-style:dashed; justify-content:center;">
+                <span style="font-size:1.2rem;">+</span> Upload Photo
+              </button>
+
+              <div style="position:relative; width:100%;">
+                <input id="photoURL" class="form-input" style="font-size:0.85rem; padding-right:80px; width:100%;"
+                  placeholder="Paste Image URL" />
+                <button id="addUrlBtn"
+                  style="position:absolute; right:4px; top:4px; bottom:4px; padding:0 0.8rem; background:var(--neon-cyan); color:white; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:0.8rem;">Add</button>
+              </div>
+            </div>
+
+            <div style="margin-top:2rem; padding-top:1.5rem; border-top:1px solid rgba(255,255,255,0.1);">
+              <h4 style="margin-bottom:0.5rem; font-size:1rem;">Badges</h4>
+              <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                <span class="chip" style="font-size:0.75rem;">✔ Verified ID</span>
+                <span class="chip"
+                  style="font-size:0.75rem; border-color:var(--neon-purple); color:var(--neon-purple);">💎
+                  Premium</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+  <script type="module" src="/dating/user-context.js"></script>
+  <script type="module" src="/dating/firebase-helpers.js"></script>
+  <script type="module" src="/dating/app.js"></script>
+  <script type="module" src="/dating/profile.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      flatpickr("#dob", {
+        dateFormat: "Y-m-d",
+        altInput: true,
+        altFormat: "F j, Y",
+        maxDate: "today",
+        disableMobile: "true",
+        theme: "dark",
+        onReady: function (selectedDates, dateStr, instance) {
+          const yearSelect = document.createElement('select');
+          yearSelect.className = 'flatpickr-year-dropdown';
+          yearSelect.style.cssText = 'color:inherit; background:transparent; border:none; font-weight:bold; cursor:pointer; margin-left:5px; padding:2px; font-size:inherit; -webkit-appearance:none; appearance:none;';
+
+          const currentYear = new Date().getFullYear();
+          const startYear = currentYear - 90;
+
+          for (let i = currentYear; i >= startYear; i--) {
+            const opt = document.createElement('option');
+            opt.value = i;
+            opt.text = i;
+            yearSelect.appendChild(opt);
+          }
+
+          yearSelect.value = instance.currentYear;
+
+          yearSelect.addEventListener('change', function (e) {
+            instance.changeYear(parseInt(e.target.value));
+          });
+
+          const numInputWrapper = instance.calendarContainer.querySelector('.numInputWrapper');
+          if (numInputWrapper) {
+            numInputWrapper.style.display = 'none';
+            if (numInputWrapper.parentNode) {
+              numInputWrapper.parentNode.appendChild(yearSelect);
+            }
+          }
+        },
+        onYearChange: function (selectedDates, dateStr, instance) {
+          const yearSelect = instance.calendarContainer.querySelector('.flatpickr-year-dropdown');
+          if (yearSelect) yearSelect.value = instance.currentYear;
+        },
+        onChange: function (selectedDates, dateStr, instance) {
+          if (selectedDates.length > 0) {
+            const today = new Date();
+            const birthDate = selectedDates[0];
+            let age = today.getFullYear() - birthDate.getFullYear();
+            const m = today.getMonth() - birthDate.getMonth();
+            if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+              age--;
+            }
+            const ageInput = document.getElementById('age');
+            ageInput.value = age;
+            // dispatch event if needed for framework bindings
+            ageInput.dispatchEvent(new Event('input'));
+          }
+          const yearSelect = instance.calendarContainer.querySelector('.flatpickr-year-dropdown');
+          if (yearSelect) yearSelect.value = instance.currentYear;
+        }
+      });
+    });
+  </script>
+  <style>
+    /* Flatpickr Neon Theme Overrides */
+    .flatpickr-calendar {
+      background: #050b14 !important;
+      border: 1px solid var(--neon-cyan) !important;
+      box-shadow: 0 0 20px rgba(6, 182, 212, 0.2) !important;
+      font-family: 'Outfit', sans-serif !important;
+    }
+
+    .flatpickr-months .flatpickr-month,
+    .flatpickr-weekdays,
+    .flatpickr-day {
+      background: #050b14 !important;
+      color: white !important;
+      fill: white !important;
+    }
+
+    .flatpickr-day.selected,
+    .flatpickr-day.startRange,
+    .flatpickr-day.endRange,
+    .flatpickr-day.selected.inRange,
+    .flatpickr-day.startRange.inRange,
+    .flatpickr-day.endRange.inRange,
+    .flatpickr-day:hover,
+    .flatpickr-day:focus {
+      background: var(--neon-cyan) !important;
+      border-color: var(--neon-cyan) !important;
+      color: #000 !important;
+      font-weight: bold;
+    }
+
+    .flatpickr-current-month .flatpickr-monthDropdown-months {
+      background: #050b14 !important;
+      color: white !important;
+    }
+
+    .flatpickr-next-month svg,
+    .flatpickr-prev-month svg {
+      fill: var(--neon-cyan) !important;
+    }
+
+    /* Year Dropdown Custom Styling */
+    .flatpickr-year-dropdown {
+      background: #050b14 !important;
+      color: white !important;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      padding: 0 5px;
+    }
+
+    .flatpickr-year-dropdown:hover {
+      background: rgba(6, 182, 212, 0.2) !important;
+    }
+
+    [data-theme="light"] .flatpickr-year-dropdown {
+      background: #fff !important;
+      color: #0f172a !important;
+    }
+
+    [data-theme="light"] .flatpickr-year-dropdown:hover {
+      background: #f1f5f9 !important;
+    }
+
+    /* Light Mode Overrides */
+    [data-theme="light"] .flatpickr-calendar {
+      background: #ffffff !important;
+      border-color: #cbd5e1 !important;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1) !important;
+    }
+
+    [data-theme="light"] .flatpickr-months .flatpickr-month,
+    [data-theme="light"] .flatpickr-weekdays,
+    [data-theme="light"] .flatpickr-day {
+      background: #ffffff !important;
+      color: #0f172a !important;
+    }
+
+    [data-theme="light"] .flatpickr-day.selected {
+      background: var(--neon-cyan) !important;
+      color: white !important;
+    }
+
+    [data-theme="light"] .flatpickr-current-month .flatpickr-monthDropdown-months {
+      background: #fff !important;
+      color: #0f172a !important;
+    }
+  </style>
+</body>
+
+</html>

@@ -1,0 +1,742 @@
+/* ===== Astravyn Dating Theme – Premium Glassmorphism ===== */
+
+:root {
+  /* Core Palette (Premium & Soft) */
+  --bg-dark: #0f172a;
+  /* Fallback/Base */
+  --primary: #7b2ff7;
+  --primary-glow: rgba(123, 47, 247, 0.4);
+  --accent: #f6b54a;
+  --accent-glow: rgba(246, 181, 74, 0.3);
+  --danger: #f87171;
+  --danger-soft: rgba(248, 113, 113, 0.1);
+
+  /* Text */
+  --text-main: #1e293b;
+  --text-muted: #64748b;
+  --text-light: #f8fafc;
+
+  /* Glass / Surface Variables */
+  --glass-bg: rgba(255, 255, 255, 0.75);
+  --glass-border: rgba(255, 255, 255, 0.6);
+  --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+  --glass-blur: blur(12px);
+
+  /* Gradients */
+  --grad-primary: linear-gradient(135deg, #7b2ff7 0%, #f72f88 100%);
+  --grad-soft: radial-gradient(circle at top left, #eef2ff 0%, #fdf2f8 100%);
+
+  /* UI Shapes */
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-xl: 32px;
+  --radius-pill: 9999px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  margin: 0;
+  font-family: 'Outfit', 'Inter', system-ui, sans-serif;
+  /* Recommend adding Outfit font */
+  background: var(--grad-soft);
+  color: var(--text-main);
+  min-height: 100vh;
+  line-height: 1.5;
+}
+
+/* ===== Layout ===== */
+.page-wrapper {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+  width: 100%;
+}
+
+/* ===== Glass Navigation ===== */
+.dating-nav {
+  position: sticky;
+  top: 1rem;
+  margin: 0 1rem;
+  z-index: 100;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.06);
+}
+
+.dating-nav-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0.75rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.brand-logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--grad-primary);
+  display: grid;
+  place-items: center;
+  color: white;
+  font-weight: 700;
+  font-size: 1.2rem;
+  box-shadow: 0 4px 12px var(--primary-glow);
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+
+.brand-text-main {
+  font-weight: 700;
+  font-size: 1.1rem;
+  background: var(--grad-primary);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.brand-text-sub {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.nav-links {
+  display: flex;
+  gap: 0.5rem;
+  background: rgba(0, 0, 0, 0.03);
+  padding: 0.35rem;
+  border-radius: var(--radius-pill);
+}
+
+.nav-links a {
+  text-decoration: none;
+  color: var(--text-muted);
+  font-weight: 500;
+  font-size: 0.9rem;
+  padding: 0.5rem 1.2rem;
+  border-radius: var(--radius-pill);
+  transition: all 0.3s ease;
+}
+
+.nav-links a.active,
+.nav-links a:hover {
+  background: white;
+  color: var(--primary);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.nav-avatar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.3rem 0.4rem 0.3rem 1rem;
+  background: white;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+}
+
+.nav-avatar-initial {
+  width: 36px;
+  height: 36px;
+  background: var(--accent);
+  color: white;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.nav-avatar-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  padding-right: 0.6rem;
+}
+
+/* ===== Cards (Glassmorphism) ===== */
+.card {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-xl);
+  padding: 1.5rem;
+  box-shadow: var(--glass-shadow);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(31, 38, 135, 0.2);
+}
+
+.card-soft {
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+/* ===== Buttons ===== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--radius-pill);
+  border: none;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  letter-spacing: 0.01em;
+  text-decoration: none;
+}
+
+.btn-primary {
+  background: var(--grad-primary);
+  color: white;
+  box-shadow: 0 8px 20px var(--primary-glow);
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 25px rgba(123, 47, 247, 0.6);
+}
+
+.btn-ghost {
+  background: rgba(255, 255, 255, 0.5);
+  color: var(--text-main);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.btn-ghost:hover {
+  background: white;
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+/* ===== Typography & Chips ===== */
+h1,
+h2,
+h3 {
+  margin: 0;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+p {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 1.5rem;
+}
+
+.section-title {
+  font-size: 1.75rem;
+  letter-spacing: -0.02em;
+}
+
+.section-subtitle {
+  font-size: 1rem;
+  margin-top: 0.25rem;
+}
+
+.chip {
+  background: rgba(123, 47, 247, 0.1);
+  color: var(--primary);
+  padding: 0.35rem 0.85rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid rgba(123, 47, 247, 0.15);
+}
+
+.tag {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.75rem;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 8px;
+  color: var(--text-muted);
+}
+
+/* ===== Profile Card ===== */
+.profile-card {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 4/ 4;
+  /* Ideal for dating apps */
+  padding: 0;
+  /* Remove padding so image fills card */
+  cursor: pointer;
+  border-radius: var(--radius-xl);
+  /* Match card radius */
+}
+
+.profile-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* VERY IMPORTANT */
+  display: block;
+  margin: 0;
+  /* Remove margin */
+  border-radius: 0;
+  /* Let card container handle radius */
+  box-shadow: none;
+  /* Shadow on card logic */
+}
+
+.profile-name {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: white;
+  /* Text on overlay must be white */
+}
+
+.profile-meta {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.8);
+  /* Muted white */
+  display: block;
+  margin-top: 0.1rem;
+}
+
+.tag-list {
+  display: none;
+  /* Hide tags on card preview for cleaner look, or style them for overlay */
+  /* If we want to keep them, we need to style them for dark background */
+}
+
+.profile-actions {
+  /* Actions might be better outside the card or overlayed differently. 
+     For now, let's just fix the image visibility. 
+     If actions are inside the card, they need to be positioned.
+     Assuming actions are NOT inside .profile-card for the main listing based on screenshot 
+     (screenshot shows Connect/Like buttons at bottom).
+     Wait, looking at screenshot, the Connect/Like buttons ARE inside the card at the bottom.
+     The overlay covers them? No, the buttons are likely part of the overlay or below the image?
+     
+     If looking at the screenshot, the card has:
+     [ Image area ]
+     [ Name/Info overlay ]
+     [ Buttons ]
+     
+     Actually, the user says "Overlay covers the middle of the image".
+     
+     Let's stick to the user's specific CSS request which addresses the overlay height.
+  */
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.profile-actions .btn {
+  padding: 0.6rem;
+  font-size: 0.9rem;
+}
+
+/* ... Hero Section ... */
+
+/* ... */
+
+.profile-info-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: auto;
+  /* ✅ FIX: Content-based height */
+  padding: 0.75rem 1rem;
+  /* Smaller padding */
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+
+  background: transparent;
+
+  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+  pointer-events: none;
+}
+
+/* Fix text colors inside overlay since background is dark */
+.profile-info-overlay .profile-name {
+  color: white;
+}
+
+.profile-info-overlay .profile-meta {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.profile-info-overlay .tag {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: none;
+}
+
+.profile-info-overlay .btn {
+  pointer-events: auto;
+  /* Ensure buttons click */
+}
+
+.hero-illustration-main {
+  font-size: .9rem;
+  font-weight: 600;
+  margin-bottom: .5rem;
+}
+
+.hero-avatars-row {
+  display: flex;
+  align-items: center;
+  margin-top: .4rem;
+}
+
+.hero-mini-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  background: linear-gradient(145deg, #ff9aba, #7b2ff7);
+  box-shadow: 0 6px 16px rgba(123, 47, 247, 0.45);
+}
+
+.hero-mini-avatar+.hero-mini-avatar {
+  margin-left: -10px;
+}
+
+/* ===== Grids ===== */
+.grid {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.matches-grid {
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+}
+
+.quick-actions-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.quick-card-title {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.quick-card-text {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+}
+
+
+/* ===== Profile Editor / Forms ===== */
+.form-group {
+  margin-bottom: 1.25rem;
+}
+
+.form-label {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+  color: var(--text-main);
+}
+
+.form-input,
+.form-select,
+.form-textarea,
+.filter-input,
+.filter-select {
+  width: 100%;
+  padding: 0.8rem 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  background: rgba(255, 255, 255, 0.8);
+  font-family: inherit;
+  font-size: 0.95rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-input:focus,
+.form-select:focus,
+.form-textarea:focus,
+.filter-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px var(--primary-soft);
+  background: white;
+}
+
+/* ===== Modal (Modern) ===== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.modal-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modal-content {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  width: 90%;
+  max-width: 600px;
+  max-height: 90vh;
+  border-radius: var(--radius-xl);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  overflow-y: auto;
+  position: relative;
+  transform: translateY(20px);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-overlay.open .modal-content {
+  transform: translateY(0);
+}
+
+.modal-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: rgba(0, 0, 0, 0.05);
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: 1.2rem;
+  cursor: pointer;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  transition: all 0.2s;
+}
+
+.modal-close:hover {
+  background: rgba(0, 0, 0, 0.1);
+  transform: rotate(90deg);
+}
+
+/* Gallery in Modal */
+.modal-gallery {
+  height: 350px;
+  width: 100%;
+  background: #f1f5f9;
+  position: relative;
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+}
+
+.modal-gallery img {
+  flex: 0 0 100%;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  scroll-snap-align: center;
+}
+
+.modal-body {
+  padding: 1.5rem;
+}
+
+.modal-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.5rem;
+}
+
+.modal-name {
+  font-size: 1.8rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.modal-meta {
+  font-size: 1rem;
+  color: var(--text-muted);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .hero-card {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+    text-align: center;
+  }
+
+  .hero-card>*:first-child {
+    order: 2;
+  }
+
+  .hero-illustration {
+    order: 1;
+    margin: 0 auto;
+  }
+
+  .nav-links {
+    display: none;
+  }
+
+  /* Mobile menu needed later */
+  .profile-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .dating-nav-inner {
+    padding: 0.75rem 1rem;
+  }
+
+  .modal-gallery {
+    height: 250px;
+  }
+}
+
+/* Filter panel on Search */
+.filter-panel {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  padding: 1.5rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--glass-border);
+}
+
+.filter-group {
+  margin-bottom: 1rem;
+}
+
+.filter-label {
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 0.35rem;
+  display: block;
+}
+
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.search-layout {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 1.5rem;
+}
+
+@media (max-width: 768px) {
+  .search-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ===============================
+   PROFILE GALLERY – DELETE BUTTON
+   =============================== */
+
+.photo-slot {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.photo-slot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Red round delete icon */
+.photo-delete-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #ef4444;
+  /* red */
+  color: #fff;
+  border: none;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+.photo-delete-btn:hover {
+  background: #dc2626;
+  transform: scale(1.05);
+}
+/* === Gradient effects disabled intentionally === */
+/* Remove photo overlay gradients */
+.profile-card::before,
+.profile-card::after {
+  content: none !important;
+  background: none !important;
+}
+
+/* Remove card top glow gradient */
+.card::before {
+  content: none !important;
+  background: none !important;
+}
+
+/* Add text shadow for readability */
+.profile-info-overlay {
+  text-shadow: 0 1px 3px rgba(0,0,0,0.35);
+}

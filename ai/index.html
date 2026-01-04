@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Astravyn AI Studio</title>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./style.css">
+</head>
+
+<body>
+  <header class="site-header">
+    <div class="container">
+      <h1 class="brand">Astravyn AI Studio</h1>
+      <nav class="nav">
+        <a href="../index.html">Home</a>
+        <a href="#">AI Studio</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container main-grid">
+    <!-- Image panel -->
+    <section class="panel">
+      <h2>Create image from text</h2>
+      <p class="muted">Enter a prompt and click <strong>Generate</strong>.</p>
+
+      <label class="field">
+        <span>Prompt</span>
+        <textarea id="prompt" placeholder="e.g. cinematic drone shot over a south Indian village at golden hour"
+          rows="4"></textarea>
+      </label>
+
+      <div class="controls-row">
+        <label class="field small">
+          <span>Size</span>
+          <select id="size">
+            <option value="512x512">512 × 512</option>
+            <option value="768x768">768 × 768</option>
+            <option value="1024x1024">1024 × 1024</option>
+          </select>
+        </label>
+
+        <label class="field small">
+          <span>Count</span>
+          <select id="count">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="4">4</option>
+          </select>
+        </label>
+
+        <button id="generate" class="btn primary">Generate</button>
+      </div>
+
+      <div id="status" class="status">Ready</div>
+    </section>
+
+    <!-- Image results -->
+    <section class="panel results" aria-live="polite">
+      <h2>Image Results</h2>
+      <div id="gallery" class="gallery"></div>
+    </section>
+
+    <!-- Video panel -->
+    <section class="panel">
+      <h2>Create video from text</h2>
+      <p class="muted">Generate short MP4 videos (server must be configured with a video endpoint in backend/.env).</p>
+
+      <label class="field">
+        <span>Prompt</span>
+        <textarea id="v-prompt" placeholder="e.g. cinematic drone shot over a south Indian village, 10s"
+          rows="3"></textarea>
+      </label>
+
+      <div class="controls-row">
+        <label class="field small">
+          <span>Duration (s)</span>
+          <input id="v-duration" placeholder="10" type="number" min="1" max="60" />
+        </label>
+
+        <label class="field small">
+          <span>Count</span>
+          <select id="v-count">
+            <option value="1">1</option>
+            <option value="2">2</option>
+          </select>
+        </label>
+
+        <button id="generate-video" class="btn primary">Generate Video</button>
+      </div>
+
+      <div id="v-status" class="status">Ready</div>
+    </section>
+
+    <!-- Video results -->
+    <section class="panel results" id="video-results-panel" aria-live="polite">
+      <h2>Video Results</h2>
+      <div id="video-gallery" class="gallery"></div>
+    </section>
+
+    <!-- Library panel -->
+    <section class="panel results" id="library-panel" aria-live="polite">
+      <h2>Library (All Generated Content)</h2>
+      <div id="library-gallery" class="gallery"></div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <small>© Astravyn • AI Studio</small>
+    </div>
+  </footer>
+
+  <script type="module" src="./app.js"></script>
+</body>
+
+</html>
