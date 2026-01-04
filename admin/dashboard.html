@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Astravyn Admin Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="admin.css" />
+</head>
+
+<body>
+
+
+    <div class="dashboard">
+
+
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <h2>Astravyn</h2>
+            <nav>
+                <button data-tab="overview">Overview</button>
+                <button data-tab="profiles">Profiles</button>
+                <button data-tab="likes">Likes</button>
+                <button data-tab="connections">Connections</button>
+            </nav>
+            <button id="logoutBtn" style="width:90%; margin-top:auto; margin-bottom:20px; padding:10px; background:#ef4444; color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600;">Sign Out</button>
+        </aside>
+
+
+        <!-- Main -->
+        <main class="content">
+
+
+            <!-- OVERVIEW -->
+            <section id="overview" class="tab active">
+                <h1>Dashboard Overview</h1>
+                <div class="cards">
+                    <div class="card"><span id="totalUsers">0</span>
+                        <p>Users</p>
+                    </div>
+                    <div class="card"><span id="totalProfiles">0</span>
+                        <p>Profiles</p>
+                    </div>
+                    <div class="card"><span id="totalLikes">0</span>
+                        <p>Likes</p>
+                    </div>
+                    <div class="card"><span id="totalConnections">0</span>
+                        <p>Connections</p>
+                    </div>
+                </div>
+            </section>
+
+
+            <!-- PROFILES -->
+            <section id="profiles" class="tab">
+                <h1>Dating Profiles</h1>
+
+                <!-- NEW: Search Controls -->
+                <div class="search-controls">
+                    <input type="text" id="profileSearch" class="search-input"
+                        placeholder="Search profiles by name, location..." />
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th data-sort="displayName">Name <span class="sort-icon"></span></th>
+                            <th data-sort="gender">Gender <span class="sort-icon"></span></th>
+                            <th data-sort="age">Age <span class="sort-icon"></span></th>
+                            <th data-sort="location">Location <span class="sort-icon"></span></th>
+                            <th data-sort="isVisible">Visible <span class="sort-icon"></span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="profilesBody"></tbody>
+                </table>
+            </section>
+
+
+            <!-- LIKES -->
+            <section id="likes" class="tab">
+                <h1>Likes</h1>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>From</th>
+                            <th>To</th>
+                            <th>Status</th>
+                            <th>Time</th>
+                        </tr>
+                    </thead>
+                    <tbody id="likesBody"></tbody>
+                </table>
+            </section>
+
+
+            <!-- CONNECTIONS -->
+            <section id="connections" class="tab">
+                <h1>Connections</h1>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>From</th>
+                            <th>To</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                        </tr>
+                    </thead>
+                    <tbody id="connectionsBody"></tbody>
+                </table>
+            </section>
+
+        </main>
+
+    </div>
+
+    <!-- EDIT MODAL -->
+    <div id="editModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Edit Profile</h2>
+                <button class="close-btn" id="btnCloseModal">×</button>
+            </div>
+
+            <div class="modal-body-grid">
+                <!-- LEFT: Photo Gallery -->
+                <div class="photo-col">
+                    <div class="photo-grid" id="modalPhotoGrid">
+                        <!-- JS Injected Thumbnails -->
+                    </div>
+                    <input type="file" id="modalPhotoInput" style="display:none" accept="image/*" multiple>
+                    <button class="btn btn-ghost" id="btnAddPhoto" style="width:100%">+ Add Photo</button>
+                    <div style="font-size:11px; color:#64748b; margin-top:5px;">Max 5 Photos</div>
+                </div>
+
+                <!-- RIGHT: Form -->
+                <div class="form-grid">
+                    <div class="form-group full">
+                        <label class="form-label">Display Name</label>
+                        <input type="text" id="inpName" class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Age</label>
+                        <input type="number" id="inpAge" class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Gender</label>
+                        <select id="inpGender" class="form-select">
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Location</label>
+                        <input type="text" id="inpLocation" class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Profession</label>
+                        <input type="text" id="inpProfession" class="form-input">
+                    </div>
+                    <div class="form-group full">
+                        <label class="form-label">About / Bio</label>
+                        <textarea id="inpBio" class="form-textarea"></textarea>
+                    </div>
+                    <div class="form-group full">
+                        <label class="form-label">Interests (comma separated)</label>
+                        <input type="text" id="inpInterests" class="form-input">
+                    </div>
+                    <div class="form-group full"
+                        style="flex-direction:row; align-items:center; gap:10px; margin-top:5px;">
+                        <input type="checkbox" id="inpVisible" style="width:auto; height:18px; width:18px;">
+                        <label class="form-label" for="inpVisible"
+                            style="margin:0; cursor:pointer; color: white;">Profile Visible to Public</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-danger" id="btnDelete" style="margin-right:auto;">Delete Profile</button>
+                <button class="btn btn-ghost" id="btnCancel">Cancel</button>
+                <button class="btn btn-primary" id="btnSave">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST -->
+    <div id="toast" class="toast">Action Successful</div>
+
+    <script type="module" src="./app.js"></script>
+
+</body>
+
+</html>

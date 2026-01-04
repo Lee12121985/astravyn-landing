@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timesheet Test</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background: #1a1a1a;
+            color: #00ff00;
+            padding: 20px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .test-result {
+            padding: 10px;
+            margin: 10px 0;
+            border-left: 4px solid;
+            background: #2a2a2a;
+        }
+        .test-result.pass {
+            border-color: #00ff00;
+        }
+        .test-result.fail {
+            border-color: #ff0000;
+            color: #ff6666;
+        }
+        .test-result.info {
+            border-color: #00aaff;
+            color: #00aaff;
+        }
+        h1 {
+            color: #00ff00;
+            text-shadow: 0 0 10px #00ff00;
+        }
+        button {
+            background: #00ff00;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            font-weight: bold;
+            cursor: pointer;
+            margin: 10px 5px;
+            font-family: inherit;
+        }
+        button:hover {
+            background: #00cc00;
+        }
+        .loading {
+            color: #ffff00;
+        }
+        pre {
+            background: #000;
+            padding: 10px;
+            overflow-x: auto;
+            border: 1px solid #00ff00;
+        }
+    </style>
+</head>
+<body>
+    <h1>⚡ TIMESHEET AUTOMATED TEST ⚡</h1>
+    
+    <div>
+        <button onclick="runAllTests()">▶ Run All Tests</button>
+        <button onclick="testFirebase()">🔥 Test Firebase</button>
+        <button onclick="testWelcomePage()">📊 Test Welcome Page</button>
+        <button onclick="testFullTimesheet()">📅 Test Full Timesheet</button>
+    </div>
+    
+    <div id="testResults"></div>
+
+    <script>
+        const results = document.getElementById('testResults');
+        
+        function log(message, status = 'info') {
+            const div = document.createElement('div');
+            div.className = `test-result ${status}`;
+            div.innerHTML = `<strong>[${new Date().toLocaleTimeString()}]</strong> ${message}`;
+            results.appendChild(div);
+            console.log(message);
+        }
+
+        async function runAllTests() {
+            results.innerHTML = '';
+            log('🚀 Starting automated tests...', 'info');
+            
+            await testFirebase();
+            await testWelcomePage();
+            await testFullTimesheet();
+            
+            log('✅ All tests completed!', 'pass');
+        }
+
+        async function testFirebase() {
+            log('Testing Firebase Configuration...', 'info');
+            
+            try {
+                // Test Firebase module loading
+                const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js');
+                log('✓ Firebase App module loaded', 'pass');
+                
+                const { getAuth } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js');
+                log('✓ Firebase Auth module loaded', 'pass');
+                
+                const { getFirestore } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+                log('✓ Firebase Firestore module loaded', 'pass');
+                
+                // Test Firebase initialization
+                const firebaseConfig = {
+                    apiKey: "AIzaSyBAktaI0WqKxwHQALx53_Dl_bgH5i2HZa0",
+                    authDomain: "vsd2-48c2d.firebaseapp.com",
+                    projectId: "vsd2-48c2d",
+                    storageBucket: "vsd2-48c2d.firebasestorage.app",
+                    messagingSenderId: "824762774902",
+                    appId: "1:824762774902:web:3d4db2d44c8cebbbb1fd42"
+                };
+                
+                const app = initializeApp(firebaseConfig, 'test-app');
+                log('✓ Firebase initialized successfully', 'pass');
+                
+                const auth = getAuth(app);
+                log('✓ Firebase Auth initialized', 'pass');
+                
+                const db = getFirestore(app);
+                log('✓ Firestore initialized', 'pass');
+                
+            } catch (error) {
+                log(`✗ Firebase test failed: ${error.message}`, 'fail');
+                log(`<pre>${error.stack}</pre>`, 'fail');
+            }
+        }
+
+        async function testWelcomePage() {
+            log('Testing Welcome Page...', 'info');
+            
+            try {
+                const response = await fetch('./welcome.html');
+                if (response.ok) {
+                    log('✓ welcome.html is accessible', 'pass');
+                    
+                    const html = await response.text();
+                    
+                    // Check for required elements
+                    if (html.includes('welcome-app.js')) {
+                        log('✓ welcome-app.js script included', 'pass');
+                    } else {
+                        log('✗ welcome-app.js script not found', 'fail');
+                    }
+                    
+                    if (html.includes('welcome-style.css')) {
+                        log('✓ welcome-style.css stylesheet included', 'pass');
+                    } else {
+                        log('✗ welcome-style.css stylesheet not found', 'fail');
+                    }
+                    
+                    if (html.includes('firebaseAuth')) {
+                        log('✓ Firebase Auth integration found', 'pass');
+                    } else {
+                        log('✗ Firebase Auth integration missing', 'fail');
+                    }
+                    
+                } else {
+                    log(`✗ welcome.html not accessible (${response.status})`, 'fail');
+                }
+                
+                // Test JavaScript file
+                const jsResponse = await fetch('./welcome-app.js');
+                if (jsResponse.ok) {
+                    log('✓ welcome-app.js is accessible', 'pass');
+                    const js = await jsResponse.text();
+                    
+                    if (js.includes('loadLastTimesheetData')) {
+                        log('✓ Data loading function exists', 'pass');
+                    } else {
+                        log('✗ Data loading function missing', 'fail');
+                    }
+                    
+                    if (js.includes('showDemoPreview')) {
+                        log('✓ Demo preview function exists', 'pass');
+                    } else {
+                        log('✗ Demo preview function missing', 'fail');
+                    }
+                } else {
+                    log('✗ welcome-app.js not accessible', 'fail');
+                }
+                
+                // Test CSS file
+                const cssResponse = await fetch('./welcome-style.css');
+                if (cssResponse.ok) {
+                    log('✓ welcome-style.css is accessible', 'pass');
+                } else {
+                    log('✗ welcome-style.css not accessible', 'fail');
+                }
+                
+            } catch (error) {
+                log(`✗ Welcome page test failed: ${error.message}`, 'fail');
+            }
+        }
+
+        async function testFullTimesheet() {
+            log('Testing Full Timesheet Page...', 'info');
+            
+            try {
+                const response = await fetch('./index.html');
+                if (response.ok) {
+                    log('✓ index.html is accessible', 'pass');
+                    
+                    const html = await response.text();
+                    
+                    if (html.includes('Dashboard')) {
+                        log('✓ Dashboard navigation button found', 'pass');
+                    } else {
+                        log('✗ Dashboard navigation button missing', 'fail');
+                    }
+                    
+                    if (html.includes('calendar')) {
+                        log('✓ Calendar elements found', 'pass');
+                    } else {
+                        log('⚠ Calendar elements might be missing', 'fail');
+                    }
+                    
+                } else {
+                    log(`✗ index.html not accessible (${response.status})`, 'fail');
+                }
+            } catch (error) {
+                log(`✗ Full timesheet test failed: ${error.message}`, 'fail');
+            }
+        }
+
+        // Auto-run on load
+        log('Test page loaded. Click "Run All Tests" to begin.', 'info');
+    </script>
+</body>
+</html>

@@ -1,12 +1,31 @@
-import { db, storage } from '../js/firebase-config.js';
-import { requireAdmin } from '../js/auth.js';
-import { collection, getDocs, doc, updateDoc, deleteDoc, arrayRemove, getDoc } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
+import { auth, db, storage } from '../auth/firebase-config.js';
+import { collection, getDocs, doc, updateDoc, deleteDoc, arrayRemove, getDoc, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
+import { signOut as fbSignOut } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js';
 
-requireAdmin(); // block non-admin
+// Auth guard - redirect to login if not authenticated
+onAuthStateChanged(auth, (user) => {
+	if (!user) {
+		window.location.replace('/admin/login.html');
+	}
+});
 
-const tabs = document.querySelectorAll('.sidebar button');
+const tabs = document.querySelectorAll('.sidebar button:not(#logoutBtn)');
 const sections = document.querySelectorAll('.tab');
+
+// Logout handler
+const logoutBtn = document.getElementById('logoutBtn');
+if (logoutBtn) {
+	logoutBtn.addEventListener('click', async () => {
+		try {
+			await fbSignOut(auth);
+			window.location.replace('/admin/landing.html');
+		} catch (err) {
+			console.error('Logout error:', err);
+			alert('Sign out failed: ' + err.message);
+		}
+	});
+}
 
 tabs.forEach(btn => {
 	btn.onclick = () => {

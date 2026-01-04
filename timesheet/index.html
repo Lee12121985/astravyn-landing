@@ -6,21 +6,26 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Attendance Details — Timesheet</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body.auth-loading {
+      display: none;
+    }
+  </style>
   <!-- SheetJS (needed for Excel export) -->
   <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
   <!-- xlsx-populate (needed for template-based export with styles) -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx-populate/browser/xlsx-populate.min.js"></script>
-  <!-- Firebase -->
-  <script type="module" defer>
-    import { requireAuth } from "../shared/auth-guard.js";
+  
+  <!-- Firebase with Shared Auth Guard (SAFE - Single Firebase Instance) -->
+  <script type="module">
+    import { requireAuth } from "/js/requireAuth.js";
+    import { auth, db } from "/auth/firebase-config.js";
     import { signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
     import { collection, doc, getDoc, getDocs, query, where, orderBy, limit, addDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
-    const auth = window.firebase?.auth;
-    const db = window.firebase?.firestore;
-    if (!auth || !db) {
-      throw new Error("Firebase not initialized");
-    }
+    window.firebase = window.firebase || {};
+    window.firebase.auth = auth;
+    window.firebase.firestore = db;
 
     // Timesheet document helper (user-scoped)
     const getTimesheetDocId = (uid, year, monthIndex) => `${uid}_${year}_${monthIndex}`;
@@ -82,7 +87,7 @@
       }
     }
 
-    // Load timesheet on auth state change
+    // ✅ SAFE: Use shared auth guard with single Firebase instance
     requireAuth(async (user) => {
       currentUser = user;
       currentUserId = user.uid;
@@ -567,6 +572,11 @@
       color: #111827;
       font-family: Inter, system-ui, Roboto, sans-serif;
       padding-top: 44px;
+    }
+
+    /* Auth Guard - Hide content until authenticated (SAFE approach) */
+    body.auth-checking {
+      visibility: hidden !important;
     }
 
     .top-nav {
@@ -1494,7 +1504,10 @@
   </style>
 </head>
 
-<body>
+<body class="auth-loading">
+  <!-- ⚠️ CRITICAL: Load auth guard FIRST (blocks page render) -->
+  <script type="module" src="/shared/auth/autoGuard.js"></script>
+
   <!-- Permission modal -->
   <div class="permission-modal" id="permissionModal" aria-hidden="true" role="dialog" aria-modal="true">
     <div class="permission-dialog">
@@ -1547,6 +1560,12 @@
     <div style="display:flex;align-items:center;gap:12px;">
       <button id="btnBack" class="btn btn-default btn-back" title="Go back">
         <span style="font-size:18px">&lt;</span>
+      </button>
+      <button class="btn btn-default" onclick="location.href='./welcome.html'" title="Back to Dashboard" style="padding:8px 16px;display:flex;align-items:center;gap:6px;">
+        <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+          <path d="M3 12L12 12M12 12L8 16M12 12L8 8M10 3H18.4C18.7314 3 19 3.26863 19 3.6V16.4C19 16.7314 18.7314 17 18.4 17H10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>Dashboard</span>
       </button>
       <div class="nav-brand">Astravyn Time</div>
     </div>

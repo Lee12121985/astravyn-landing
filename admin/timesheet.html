@@ -1,0 +1,159 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Timesheet Admin | Astravyn</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="admin.css" />
+</head>
+<body>
+    <div class="dashboard">
+        <aside class="sidebar">
+            <h2>Astravyn</h2>
+            <nav>
+                <button data-tab="overview">Overview</button>
+                <button data-tab="timesheets">All Timesheets</button>
+                <button data-tab="employees">Employees</button>
+                <button data-tab="reports">Reports</button>
+            </nav>
+            <button id="logoutBtn" style="width:90%; margin-top:auto; margin-bottom:20px; padding:10px; background:#ef4444; color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600;">Sign Out</button>
+        </aside>
+
+        <main class="content">
+            <section id="overview" class="tab active">
+                <h1>Timesheet Overview</h1>
+                <div class="cards">
+                    <div class="card"><span id="totalTimesheets">0</span><p>Total Timesheets</p></div>
+                    <div class="card"><span id="totalEmployees">0</span><p>Active Employees</p></div>
+                    <div class="card"><span id="thisMonth">0</span><p>This Month</p></div>
+                    <div class="card"><span id="pendingReview">0</span><p>Pending Review</p></div>
+                </div>
+            </section>
+
+            <section id="timesheets" class="tab">
+                <h1>All Timesheets</h1>
+                <div class="search-controls">
+                    <input type="text" id="timesheetSearch" class="search-input" placeholder="Search by employee name, ID, company..." />
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Employee</th><th>Company</th><th>Period</th><th>Present Days</th><th>Last Updated</th><th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="timesheetsBody"></tbody>
+                </table>
+            </section>
+
+            <section id="employees" class="tab">
+                <h1>Employees</h1>
+                <table>
+                    <thead>
+                        <tr><th>Name</th><th>Employee ID</th><th>Company</th><th>Email</th><th>Timesheets</th></tr>
+                    </thead>
+                    <tbody id="employeesBody"></tbody>
+                </table>
+            </section>
+
+            <section id="reports" class="tab">
+                <h1>Reports & Analytics</h1>
+                <div style="padding: 40px; text-align: center; color: #64748b;">
+                    <h3>Coming Soon</h3><p>Advanced reporting and analytics features</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script type="module">
+        import { auth, db } from '/auth/firebase-config.js';
+        import { onAuthStateChanged, signOut as fbSignOut } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
+        import { collection, getDocs, query, orderBy, limit } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
+
+        onAuthStateChanged(auth, (user) => { if (!user) window.location.replace('/admin/login.html'); });
+
+        const logoutBtn = document.getElementById('logoutBtn');
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', async () => {
+                try { await fbSignOut(auth); window.location.replace('/admin/landing.html'); } 
+                catch (err) { alert('Sign out failed: ' + err.message); }
+            });
+        }
+
+        const tabs = document.querySelectorAll('.sidebar button:not(#logoutBtn)');
+        const sections = document.querySelectorAll('.tab');
+        tabs.forEach(btn => { btn.onclick = () => { sections.forEach(s => s.classList.remove('active')); document.getElementById(btn.dataset.tab).classList.add('active'); }; });
+
+        async function loadCounts() {
+            try {
+                const timesheetsSnap = await getDocs(collection(db, 'timesheets'));
+                document.getElementById('totalTimesheets').innerText = timesheetsSnap.size;
+                const employees = new Set();
+                timesheetsSnap.forEach(doc => { const data = doc.data(); if (data.userId) employees.add(data.userId); });
+                document.getElementById('totalEmployees').innerText = employees.size;
+                const now = new Date();
+                const thisMonthCount = timesheetsSnap.docs.filter(doc => { const data = doc.data(); return data.year === now.getFullYear() && data.month === now.getMonth(); }).length;
+                document.getElementById('thisMonth').innerText = thisMonthCount;
+                document.getElementById('pendingReview').innerText = '0';
+            } catch (err) { console.error('Error loading counts:', err); }
+        }
+
+        async function loadTimesheets() {
+            try {
+                const q = query(collection(db, 'timesheets'), orderBy('updatedAt', 'desc'), limit(100));
+                const snap = await getDocs(q);
+                const body = document.getElementById('timesheetsBody');
+                body.innerHTML = '';
+                if (snap.empty) { body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#64748b;padding:40px">No timesheets found</td></tr>'; return; }
+                snap.forEach(doc => {
+                    const data = doc.data();
+                    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                    const period = ${monthNames[data.month || 0]} ;
+                    let presentDays = 0;
+                    if (data.statusMap) { presentDays = Object.values(data.statusMap).filter(status => status === 'P' || status === 'Present').length; }
+                    const updatedAt = data.updatedAt?.toDate ? data.updatedAt.toDate().toLocaleDateString() : '-';
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = <td></td><td></td><td></td><td></td><td></td><td><button onclick="viewTimesheet('')" style="padding:4px 8px;background:#06b6d4;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px">View</button></td>;
+                    body.appendChild(tr);
+                });
+            } catch (err) { console.error('Error loading timesheets:', err); }
+        }
+
+        async function loadEmployees() {
+            try {
+                const snap = await getDocs(collection(db, 'timesheets'));
+                const employeeMap = new Map();
+                snap.forEach(doc => {
+                    const data = doc.data();
+                    const userId = data.userId || data.userEmail;
+                    if (!userId) return;
+                    if (!employeeMap.has(userId)) { employeeMap.set(userId, { name: data.employeeName || '-', empId: data.employeeId || '-', company: data.company || '-', email: data.userEmail || '-', count: 0 }); }
+                    employeeMap.get(userId).count++;
+                });
+                const body = document.getElementById('employeesBody');
+                body.innerHTML = '';
+                if (employeeMap.size === 0) { body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#64748b;padding:40px">No employees found</td></tr>'; return; }
+                employeeMap.forEach((emp, userId) => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = <td></td><td></td><td></td><td></td><td></td>;
+                    body.appendChild(tr);
+                });
+            } catch (err) { console.error('Error loading employees:', err); }
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text.toString().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+
+        window.viewTimesheet = (docId) => { alert(Viewing timesheet: \n\nFull timesheet viewer coming soon!); };
+
+        document.getElementById('timesheetSearch')?.addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            const rows = document.querySelectorAll('#timesheetsBody tr');
+            rows.forEach(row => { const text = row.textContent.toLowerCase(); row.style.display = text.includes(searchTerm) ? '' : 'none'; });
+        });
+
+        loadCounts(); loadTimesheets(); loadEmployees();
+    </script>
+</body>
+</html>

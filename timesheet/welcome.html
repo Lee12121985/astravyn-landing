@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timesheet Dashboard - Astravyn</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="welcome-style.css">
+</head>
+<body>
+    <!-- Top Navigation Bar -->
+    <header class="top-nav">
+        <div class="nav-left">
+            <button class="back-btn" onclick="history.back()">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M12.5 15L7.5 10L12.5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Back
+            </button>
+            <div class="nav-brand">
+                <span class="brand-icon">⏱️</span>
+                <span>Astravyn Time</span>
+            </div>
+        </div>
+        <div class="nav-right">
+            <div id="userStatus" class="user-status">
+                <span class="status-indicator"></span>
+                <span class="status-text">Loading...</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Welcome Container -->
+    <main class="welcome-container">
+        <!-- Hero Section -->
+        <section class="hero">
+            <div class="user-info-card">
+                <div class="user-avatar-large" id="userAvatarLarge">U</div>
+                <div class="user-details">
+                    <h1 class="hero-title">Welcome back, <span id="userName" class="user-name">User</span>!</h1>
+                    <p class="hero-subtitle" id="heroSubtitle">Your timesheet at a glance</p>
+                    <div class="user-meta">
+                        <span class="meta-item" id="userEmailDisplay">Loading...</span>
+                        <span class="meta-divider">•</span>
+                        <span class="meta-item" id="savedMonthDisplay">Current Month</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Quick Actions Card -->
+        <div class="quick-actions-card">
+            <div class="action-header">
+                <div>
+                    <h3 class="action-title">Your Timesheet</h3>
+                    <p class="action-desc">Open the full timesheet editor to add or modify entries</p>
+                </div>
+                <div class="icon-badge">⏱️</div>
+            </div>
+            <a href="./index.html" class="action-link">
+                <span>Open Full Timesheet Editor</span>
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M7 4L13 10L7 16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </a>
+        </div>
+
+        <!-- Quick Stats Card -->
+        <div class="quick-stats-card">
+            <div class="stats-header">
+                <h2 class="stats-title">Quick Overview</h2>
+                <div class="attendance-badge" id="attendanceBadge">
+                    <span class="badge-value" id="attendancePercentage">0%</span>
+                    <span class="badge-label">Attendance</span>
+                </div>
+            </div>
+            <div class="stats-compact">
+                <div class="stat-item present">
+                    <span class="stat-value" id="statPresent">0</span>
+                    <span class="stat-label">Present</span>
+                </div>
+                <div class="stat-item leave">
+                    <span class="stat-value" id="statLeave">0</span>
+                    <span class="stat-label">Leave</span>
+                </div>
+                <div class="stat-item comp">
+                    <span class="stat-value" id="statComp">0</span>
+                    <span class="stat-label">Comp-off</span>
+                </div>
+                <div class="stat-item holiday">
+                    <span class="stat-value" id="statHoliday">0</span>
+                    <span class="stat-label">Holiday</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Calendar Preview -->
+        <div class="calendar-preview-section">
+            <div class="section-header">
+                <h2 class="section-title">Calendar Preview</h2>
+                <div class="month-display" id="monthYearDisplay">Loading...</div>
+            </div>
+            <div class="mini-calendar" id="miniCalendar">
+                <!-- Calendar will be rendered by JavaScript -->
+            </div>
+        </div>
+
+        <!-- Info Footer -->
+        <div class="info-footer">
+            <div class="last-updated" id="lastUpdated">Last saved: Never</div>
+            <div class="demo-notice" id="demoNotice" style="display: none;">
+                📊 Showing demo preview • Start tracking your attendance
+            </div>
+        </div>
+    </main>
+
+    <!-- Firebase Config -->
+    <script type="module" src="/auth/firebase-config.js"></script>
+    
+    <!-- Firebase SDKs -->
+    <script type="module">
+        // Import from shared config
+        import { auth, db } from '/auth/firebase-config.js';
+        import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
+        import { doc, getDoc, collection, query, where, orderBy, limit, getDocs } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
+
+        console.log('🔧 Loading Firebase for welcome page...');
+        console.log('Auth:', auth);
+        console.log('DB:', db);
+
+        // Make available globally
+        window.firebaseAuth = auth;
+        window.firebaseDb = db;
+        window.firebaseOnAuthStateChanged = onAuthStateChanged;
+        window.firebaseDoc = doc;
+        window.firebaseGetDoc = getDoc;
+        window.firebaseCollection = collection;
+        window.firebaseQuery = query;
+        window.firebaseWhere = where;
+        window.firebaseOrderBy = orderBy;
+        window.firebaseLimit = limit;
+        window.firebaseGetDocs = getDocs;
+        window.firebaseSignOut = signOut;
+        
+        // Signal that Firebase is ready
+        window.firebaseReady = true;
+        window.dispatchEvent(new Event('firebaseReady'));
+        console.log('✅ Firebase ready for welcome page');
+    </script>
+    <script src="welcome-app.js"></script>
+</body>
+</html>

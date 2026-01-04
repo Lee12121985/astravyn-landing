@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Astravyn Admin | Sign In</title>
+  <script type="module" src="/auth/firebase-config.js"></script>
+  <style>
+    @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      max-width: 440px;
+      width: 100%;
+      padding: 40px;
+    }
+
+    h1 {
+      font-size: 28px;
+      margin-bottom: 8px;
+      color: #0f172a;
+      font-weight: 700;
+    }
+
+    .subtitle {
+      font-size: 14px;
+      color: #64748b;
+      margin-bottom: 32px;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #0f172a;
+      margin-bottom: 8px;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: "Inter", system-ui;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 10px;
+      font-size: 15px;
+      transition: all 0.2s;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+    }
+
+    .msg {
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      font-size: 13px;
+      text-align: center;
+      display: none;
+    }
+
+    .msg.success {
+      background: rgba(34, 197, 94, 0.1);
+      color: #16a34a;
+      display: block;
+    }
+
+    .msg.error {
+      background: rgba(239, 68, 68, 0.1);
+      color: #dc2626;
+      display: block;
+    }
+
+    .back-link {
+      text-align: center;
+      margin-top: 20px;
+    }
+
+    .back-link a {
+      color: #667eea;
+      text-decoration: none;
+      font-size: 14px;
+      transition: color 0.2s;
+    }
+
+    .back-link a:hover {
+      color: #764ba2;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Admin Sign In</h1>
+    <p class="subtitle">Enter your credentials to access the admin dashboard</p>
+    <div id="msg" class="msg"></div>
+    <form id="loginForm">
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input type="email" id="email" required>
+      </div>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" required>
+      </div>
+      <button type="submit">Sign In</button>
+    </form>
+    <div class="back-link">
+      <a href="/admin/landing.html">← Back to landing</a>
+    </div>
+  </div>
+
+  <script type="module">
+    import { auth, db } from '/auth/firebase-config.js';
+    import { signInWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
+    import { doc, getDoc } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
+
+    const form = document.getElementById('loginForm');
+    const msg = document.getElementById('msg');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = form.email.value.trim();
+      const password = form.password.value;
+      
+      try {
+        msg.classList.remove('success', 'error');
+        msg.textContent = 'Signing in...';
+        msg.classList.add('success');
+
+        const cred = await signInWithEmailAndPassword(auth, email, password);
+        
+        // Check if user is admin
+        const userDoc = await getDoc(doc(db, 'users', cred.user.uid));
+        if (userDoc.exists() && userDoc.data().role === 'admin') {
+          msg.textContent = 'Welcome! Redirecting...';
+          msg.classList.remove('success', 'error');
+          msg.classList.add('success');
+          setTimeout(() => window.location.replace('/admin/hub.html'), 1500);
+        } else {
+          msg.textContent = 'Access denied. Admin credentials required.';
+          msg.classList.remove('success', 'error');
+          msg.classList.add('error');
+          try {
+            await auth.signOut();
+          } catch (e) {}
+        }
+      } catch (err) {
+        msg.textContent = err.message || 'Sign in failed';
+        msg.classList.remove('success', 'error');
+        msg.classList.add('error');
+      }
+    });
+  </script>
+</body>
+</html>

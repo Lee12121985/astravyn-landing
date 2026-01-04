@@ -266,7 +266,11 @@
         const cred = await signInWithEmailAndPassword(auth, email, password);
         await upsertUserProfile(cred.user);
         setMessage("Welcome back 👋", "success");
-        window.location.replace("/auth/hub.html");
+        
+        // Support return URL for seamless navigation
+        const params = new URLSearchParams(window.location.search);
+        const returnTo = decodeURIComponent(params.get("returnTo") || "/auth/hub.html");
+        window.location.replace(returnTo);
       } catch (error) {
         console.error("[Login] Error", error);
         setMessage(error.message || "Unable to sign in", "error");
@@ -279,7 +283,11 @@
         const cred = await signInWithPopup(auth, googleProvider);
         await upsertUserProfile(cred.user);
         setMessage("Signed in with Google 🎉", "success");
-        window.location.replace("/auth/hub.html");
+        
+        // Support return URL for seamless navigation
+        const params = new URLSearchParams(window.location.search);
+        const returnTo = decodeURIComponent(params.get("returnTo") || "/auth/hub.html");
+        window.location.replace(returnTo);
       } catch (error) {
         console.error("[Login] Google error", error);
         setMessage(error.message || "Google sign-in failed", "error");
